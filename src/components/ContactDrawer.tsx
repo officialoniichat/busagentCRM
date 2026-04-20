@@ -298,7 +298,7 @@ export default function ContactDrawer({
             </Field>
             <Field
               label="Origin"
-              hint={originLocked ? '🔒 nur mit Admin-Passwort' : undefined}
+              hint={originLocked ? 'nur mit Admin-Passwort' : undefined}
             >
               <div className="flex gap-2 flex-wrap">
                 {(['F', 'T'] as Origin[]).map((o) => {
