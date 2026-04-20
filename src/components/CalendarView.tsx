@@ -264,6 +264,7 @@ export default function CalendarView({
         <MeetingDrawer
           meeting={selected}
           contacts={contacts}
+          allMeetings={meetings}
           onClose={() => openMeeting(null)}
           onLink={async (cid) => {
             await onLinkMeeting(selected.id, cid);

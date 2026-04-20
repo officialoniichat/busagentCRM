@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Contact, Meeting, NewContact, NewMeeting, Origin } from '../types';
-import { ORIGIN_META } from '../types';
+import { MEETING_ORIGINS, ORIGIN_META } from '../types';
 import { CheckIcon, PlusIcon, XIcon } from './Icons';
 import ContactDrawer from './ContactDrawer';
 
@@ -236,9 +236,9 @@ export default function MeetingCreateDrawer({
             />
           </Field>
 
-          <Field label="Vertriebler (nur CRM)" hint="wird nicht an Zoom gesendet">
+          <Field label="Im Call (nur CRM)" hint="wird nicht an Zoom gesendet">
             <div className="flex items-center gap-2">
-              {(['F', 'T'] as Origin[]).map((o) => {
+              {MEETING_ORIGINS.map((o) => {
                 const meta = ORIGIN_META[o];
                 const active = assignedSellers.includes(o);
                 return (

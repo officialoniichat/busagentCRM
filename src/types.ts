@@ -1,5 +1,11 @@
 export type Stufe = 'K' | 'V' | 'T';
-export type Origin = 'F' | 'T';
+export type Origin = 'F' | 'T' | 'D';
+
+/** Origins allowed on a CRM contact (who brought them in) — only Vertriebler. */
+export const CONTACT_ORIGINS: Origin[] = ['F', 'T'];
+
+/** Origins allowed on a meeting/task participant. */
+export const MEETING_ORIGINS: Origin[] = ['F', 'T', 'D'];
 
 export interface Contact {
   id: string;
@@ -41,9 +47,10 @@ export const STUFE_META: Record<Stufe, { label: string; chip: string; dot: strin
   }
 };
 
-export const ORIGIN_META: Record<Origin, { label: string; chip: string }> = {
-  F: { label: 'Fabian', chip: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
-  T: { label: 'Theo', chip: 'bg-rose-50 text-rose-700 ring-rose-200' }
+export const ORIGIN_META: Record<Origin, { label: string; role: string; chip: string }> = {
+  F: { label: 'Fabian', role: 'Vertriebler', chip: 'bg-indigo-50 text-indigo-700 ring-indigo-200' },
+  T: { label: 'Theo', role: 'Vertriebler', chip: 'bg-rose-50 text-rose-700 ring-rose-200' },
+  D: { label: 'Daniel', role: 'ITler', chip: 'bg-cyan-50 text-cyan-700 ring-cyan-200' }
 };
 
 export const EMPTY_CONTACT: NewContact = {

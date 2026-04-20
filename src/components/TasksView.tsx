@@ -6,7 +6,7 @@ import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { DateSelectArg, EventClickArg, EventContentArg } from '@fullcalendar/core';
 import type { Contact, Meeting, NewTask, Origin, Task } from '../types';
-import { ORIGIN_META, meetingState, vorschauHighlight } from '../types';
+import { MEETING_ORIGINS, ORIGIN_META, meetingState, vorschauHighlight } from '../types';
 import type { Route } from '../routing';
 import MeetingDrawer from './MeetingDrawer';
 import TaskDrawer from './TaskDrawer';
@@ -153,8 +153,8 @@ export default function TasksView({
             Wähle dich aus, um deine Meetings und Tasks zu sehen. Du kannst später oben
             jederzeit wechseln.
           </p>
-          <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-            {(['F', 'T'] as Origin[]).map((o) => (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-xl mx-auto">
+            {MEETING_ORIGINS.map((o) => (
               <button
                 key={o}
                 onClick={() => pickWho(o)}
@@ -164,7 +164,7 @@ export default function TasksView({
                 }
               >
                 <div className="text-xs font-medium uppercase tracking-wider opacity-60">
-                  {o === 'F' ? 'Vertriebler' : 'Vertriebler'}
+                  {ORIGIN_META[o].role}
                 </div>
                 <div className="text-2xl font-semibold mt-1">{ORIGIN_META[o].label}</div>
               </button>
@@ -249,7 +249,7 @@ export default function TasksView({
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-            Angemeldet als
+            {ORIGIN_META[whoAmI].role}
           </div>
           <div className="text-lg font-semibold text-slate-900">
             {ORIGIN_META[whoAmI].label}
@@ -320,6 +320,7 @@ export default function TasksView({
         <MeetingDrawer
           meeting={selectedMeeting}
           contacts={contacts}
+          allMeetings={meetings}
           onClose={() => openMeeting(null)}
           onLink={async (cid) => {
             await onLinkMeeting(selectedMeeting.id, cid);

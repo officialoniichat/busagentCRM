@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Contact, Meeting, Origin } from '../types';
-import { ORIGIN_META, meetingState } from '../types';
+import { MEETING_ORIGINS, ORIGIN_META, meetingState } from '../types';
 import { PulseDot, XIcon } from './Icons';
 
 interface Props {
   meeting: Meeting;
   contacts: Contact[];
+  allMeetings?: Meeting[];
   onClose: () => void;
   onLink: (contactId: string | null) => Promise<void>;
   onCreateContact: () => void;
@@ -18,6 +19,7 @@ interface Props {
 export default function MeetingDrawer({
   meeting,
   contacts,
+  allMeetings = [],
   onClose,
   onLink,
   onCreateContact,
@@ -156,7 +158,7 @@ export default function MeetingDrawer({
 
           <section>
             <h3 className="text-xs font-medium text-slate-700 uppercase tracking-wider mb-2">
-              Vertriebler im Call
+              Im Call
             </h3>
             <SellerToggles
               value={meeting.assignedSellers || []}
@@ -285,6 +287,7 @@ export default function MeetingDrawer({
                 currentStart={meeting.startTime}
                 currentDuration={meeting.duration}
                 currentTimezone={meeting.timezone}
+                otherMeetings={allMeetings.filter((m) => m.id !== meeting.id)}
                 onSubmit={async (input) => {
                   setSaving(true);
                   setErr(null);
@@ -330,18 +333,21 @@ function RescheduleSection({
   currentStart,
   currentDuration,
   currentTimezone,
+  otherMeetings,
   onSubmit,
   disabled
 }: {
   currentStart: string | null;
   currentDuration: number;
   currentTimezone?: string;
+  otherMeetings: Meeting[];
   onSubmit: (input: { startTime: string; duration: number; timezone?: string }) => Promise<void>;
   disabled: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [when, setWhen] = useState(() => toLocalInput(currentStart));
   const [duration, setDuration] = useState(currentDuration || 60);
+  const [conflictAcked, setConflictAcked] = useState(false);
 
   function toLocalInput(iso: string | null): string {
     if (!iso) return '';
@@ -349,6 +355,24 @@ function RescheduleSection({
     const pad = (n: number) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
+
+  const conflicts = useMemo(() => {
+    if (!when || !Number.isFinite(duration) || duration < 1) return [];
+    const newStart = new Date(when).getTime();
+    if (!Number.isFinite(newStart)) return [];
+    const newEnd = newStart + Math.round(duration) * 60000;
+    return otherMeetings.filter((m) => {
+      if (!m.startTime) return false;
+      const s = Date.parse(m.startTime);
+      if (!Number.isFinite(s)) return false;
+      const e = s + Math.max(m.duration || 30, 5) * 60000;
+      return newStart < e && newEnd > s;
+    });
+  }, [otherMeetings, when, duration]);
+
+  useEffect(() => {
+    setConflictAcked(false);
+  }, [when, duration]);
 
   if (!open) {
     return (
@@ -403,6 +427,38 @@ function RescheduleSection({
       <p className="text-[11px] text-slate-500">
         Das Meeting behält seine Zoom-ID und Join-Link — nur Zeit ändert sich. Teilnehmer können mit demselben Link joinen.
       </p>
+      {conflicts.length > 0 && (
+        <div className="text-xs bg-amber-50 ring-1 ring-amber-300 rounded-lg px-3 py-2 space-y-1">
+          <div className="font-medium text-amber-900">
+            {conflicts.length === 1
+              ? '1 anderes Meeting überschneidet sich:'
+              : `${conflicts.length} andere Meetings überschneiden sich:`}
+          </div>
+          <ul className="space-y-0.5 text-amber-900/90">
+            {conflicts.map((m) => {
+              const s = m.startTime ? new Date(m.startTime) : null;
+              const e = s ? new Date(s.getTime() + (m.duration || 30) * 60000) : null;
+              const fmt = (d: Date | null) =>
+                d
+                  ? d.toLocaleString('de-DE', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })
+                  : '—';
+              return (
+                <li key={m.id} className="flex items-center gap-1.5">
+                  <span className="tabular-nums">
+                    {fmt(s)}–{e ? e.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </span>
+                  <span className="truncate">· {m.topic || 'Ohne Titel'}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
       <div className="flex items-center gap-2 justify-end">
         <button
           type="button"
@@ -416,14 +472,29 @@ function RescheduleSection({
           type="button"
           onClick={async () => {
             if (!when || !Number.isFinite(duration) || duration < 1) return;
+            if (conflicts.length > 0 && !conflictAcked) {
+              setConflictAcked(true);
+              return;
+            }
             const startTime = when.length === 16 ? `${when}:00` : when;
             await onSubmit({ startTime, duration: Math.round(duration), timezone: currentTimezone });
             setOpen(false);
           }}
           disabled={disabled || !when}
-          className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium"
+          className={
+            'px-3 py-1.5 text-xs rounded-lg disabled:opacity-50 font-medium ' +
+            (conflicts.length > 0
+              ? 'bg-amber-600 text-white hover:bg-amber-700'
+              : 'bg-indigo-600 text-white hover:bg-indigo-700')
+          }
         >
-          {disabled ? 'Speichere…' : 'Verschieben'}
+          {disabled
+            ? 'Speichere…'
+            : conflicts.length > 0 && !conflictAcked
+            ? 'Trotzdem verschieben?'
+            : conflicts.length > 0
+            ? 'Trotzdem verschieben'
+            : 'Verschieben'}
         </button>
       </div>
     </div>
@@ -515,7 +586,7 @@ function SellerToggles({
 
   return (
     <div className="flex items-center gap-2">
-      {(['F', 'T'] as Origin[]).map((o) => {
+      {MEETING_ORIGINS.map((o) => {
         const meta = ORIGIN_META[o];
         const active = value.includes(o);
         return (

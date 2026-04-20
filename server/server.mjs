@@ -60,7 +60,7 @@ function sanitizeContact(body) {
 
 function sanitizeTask(body) {
   const out = {};
-  if (body.owner === 'F' || body.owner === 'T') out.owner = body.owner;
+  if (body.owner === 'F' || body.owner === 'T' || body.owner === 'D') out.owner = body.owner;
   if (typeof body.title === 'string') out.title = body.title.trim();
   if (typeof body.body === 'string') out.body = body.body.trim();
   if (typeof body.startAt === 'string') out.startAt = body.startAt;
@@ -349,7 +349,7 @@ app.post('/api/meetings', async (req, res) => {
 
   let assignedSellers = [];
   if (Array.isArray(body.assignedSellers)) {
-    if (body.assignedSellers.some((s) => s !== 'F' && s !== 'T')) {
+    if (body.assignedSellers.some((s) => s !== 'F' && s !== 'T' && s !== 'D')) {
       return res.status(400).json({ error: 'assignedSellers must be F|T' });
     }
     assignedSellers = [...new Set(body.assignedSellers)];
@@ -570,7 +570,7 @@ app.patch('/api/meetings/:id', async (req, res) => {
     }
     if ('assignedSellers' in req.body) {
       const val = req.body.assignedSellers;
-      if (!Array.isArray(val) || val.some((s) => s !== 'F' && s !== 'T')) {
+      if (!Array.isArray(val) || val.some((s) => s !== 'F' && s !== 'T' && s !== 'D')) {
         return res.status(400).json({ error: 'assignedSellers must be array of F|T' });
       }
       updates.assignedSellers = [...new Set(val)];
