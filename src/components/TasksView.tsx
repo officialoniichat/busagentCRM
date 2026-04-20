@@ -1,0 +1,355 @@
+import { useMemo, useState } from 'react';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import listPlugin from '@fullcalendar/list';
+import interactionPlugin from '@fullcalendar/interaction';
+import type { DateSelectArg, EventClickArg, EventContentArg } from '@fullcalendar/core';
+import type { Contact, Meeting, NewTask, Origin, Task } from '../types';
+import { ORIGIN_META, meetingState } from '../types';
+import MeetingDrawer from './MeetingDrawer';
+import TaskDrawer from './TaskDrawer';
+import { PlusIcon, PulseDot } from './Icons';
+import './calendar-theme.css';
+
+const WHO_KEY = 'crm.whoAmI';
+
+interface Props {
+  meetings: Meeting[];
+  contacts: Contact[];
+  tasks: Task[];
+  onLinkMeeting: (meetingId: string, contactId: string | null) => Promise<void>;
+  onSetSellers: (meetingId: string, sellers: Origin[]) => Promise<void>;
+  onCreateTask: (input: NewTask) => Promise<Task>;
+  onUpdateTask: (id: string, patch: Partial<NewTask>) => Promise<Task>;
+  onDeleteTask: (id: string) => Promise<void>;
+}
+
+type TaskDrawerState =
+  | { mode: 'closed' }
+  | { mode: 'new'; defaultDate?: string }
+  | { mode: 'edit'; task: Task };
+
+export default function TasksView({
+  meetings,
+  contacts,
+  tasks,
+  onLinkMeeting,
+  onSetSellers,
+  onCreateTask,
+  onUpdateTask,
+  onDeleteTask
+}: Props) {
+  const [whoAmI, setWhoAmI] = useState<Origin | null>(() => {
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem(WHO_KEY) : null;
+    return saved === 'F' || saved === 'T' ? saved : null;
+  });
+  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
+  const [taskDrawer, setTaskDrawer] = useState<TaskDrawerState>({ mode: 'closed' });
+
+  function pickWho(o: Origin) {
+    window.localStorage.setItem(WHO_KEY, o);
+    setWhoAmI(o);
+  }
+
+  function resetWho() {
+    window.localStorage.removeItem(WHO_KEY);
+    setWhoAmI(null);
+  }
+
+  const myMeetings = useMemo(() => {
+    if (!whoAmI) return [];
+    return meetings.filter(
+      (m) => (m.assignedSellers || []).includes(whoAmI) && m.startTime
+    );
+  }, [meetings, whoAmI]);
+
+  const myTasks = useMemo(() => {
+    if (!whoAmI) return [];
+    return tasks.filter((t) => t.owner === whoAmI);
+  }, [tasks, whoAmI]);
+
+  const contactById = useMemo(() => {
+    const m = new Map<string, Contact>();
+    for (const c of contacts) m.set(c.id, c);
+    return m;
+  }, [contacts]);
+
+  const events = useMemo(() => {
+    const meetingEvents = myMeetings.map((m) => {
+      const contact = m.contactId ? contactById.get(m.contactId) : null;
+      const start = m.startTime!;
+      const endDate = new Date(Date.parse(start) + (m.duration || 30) * 60000);
+      const state = meetingState(m.startTime, m.duration);
+      return {
+        id: `m-${m.id}`,
+        title: contact ? (contact.name || contact.unternehmen || m.topic) : m.topic,
+        start,
+        end: endDate.toISOString(),
+        extendedProps: { kind: 'meeting' as const, meeting: m, contact, state },
+        classNames: [
+          'crm-ev',
+          'crm-ev-linked',
+          state === 'running' ? 'crm-ev-live' : '',
+          state === 'past' ? 'crm-ev-past' : ''
+        ]
+      };
+    });
+    const taskEvents = myTasks.map((t) => ({
+      id: `t-${t.id}`,
+      title: t.title,
+      start: t.startAt,
+      end: t.endAt,
+      extendedProps: { kind: 'task' as const, task: t },
+      classNames: ['crm-ev', 'crm-ev-task']
+    }));
+    return [...meetingEvents, ...taskEvents];
+  }, [myMeetings, myTasks, contactById]);
+
+  if (!whoAmI) {
+    return (
+      <main className="max-w-3xl mx-auto px-6 py-16">
+        <div className="bg-white ring-1 ring-slate-200 rounded-2xl p-8 text-center shadow-sm">
+          <h2 className="text-2xl font-semibold text-slate-900 mb-2">Wer bist du?</h2>
+          <p className="text-sm text-slate-500 mb-8">
+            Wähle dich aus, um deine Meetings und Tasks zu sehen. Du kannst später oben
+            jederzeit wechseln.
+          </p>
+          <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
+            {(['F', 'T'] as Origin[]).map((o) => (
+              <button
+                key={o}
+                onClick={() => pickWho(o)}
+                className={
+                  'px-5 py-6 rounded-xl ring-1 text-left transition-all hover:scale-[1.02] ' +
+                  ORIGIN_META[o].chip
+                }
+              >
+                <div className="text-xs font-medium uppercase tracking-wider opacity-60">
+                  {o === 'F' ? 'Vertriebler' : 'Vertriebler'}
+                </div>
+                <div className="text-2xl font-semibold mt-1">{ORIGIN_META[o].label}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const meetingCount = myMeetings.length;
+  const runningNow = myMeetings.filter(
+    (m) => meetingState(m.startTime, m.duration) === 'running'
+  ).length;
+  const upcomingCount = myMeetings.filter(
+    (m) => meetingState(m.startTime, m.duration) === 'upcoming'
+  ).length;
+
+  function handleEventClick(arg: EventClickArg) {
+    const { kind } = arg.event.extendedProps as { kind: 'meeting' | 'task' };
+    if (kind === 'meeting') {
+      setSelectedMeeting((arg.event.extendedProps as { meeting: Meeting }).meeting);
+    } else {
+      setTaskDrawer({
+        mode: 'edit',
+        task: (arg.event.extendedProps as { task: Task }).task
+      });
+    }
+  }
+
+  function handleDateSelect(arg: DateSelectArg) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const d = arg.start;
+    const dateKey = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    setTaskDrawer({ mode: 'new', defaultDate: dateKey });
+  }
+
+  function renderEventContent(arg: EventContentArg) {
+    const kind = arg.event.extendedProps.kind as 'meeting' | 'task';
+    const time = arg.event.start
+      ? arg.event.start.toLocaleTimeString('de-DE', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
+      : '';
+    if (kind === 'task') {
+      return (
+        <div className="overflow-hidden px-1.5 py-0.5 text-xs leading-tight">
+          <div className="font-medium truncate">
+            <span className="opacity-60 tabular-nums mr-1">{time}</span>
+            {arg.event.title}
+          </div>
+        </div>
+      );
+    }
+    const contact = arg.event.extendedProps.contact as Contact | null;
+    const m = arg.event.extendedProps.meeting as Meeting;
+    return (
+      <div className="overflow-hidden px-1.5 py-0.5 text-xs leading-tight">
+        <div className="flex items-center gap-1 font-medium truncate">
+          <span className="opacity-60 tabular-nums">{time}</span>
+          <span className="truncate">
+            {contact ? contact.name || contact.unternehmen : m.topic}
+          </span>
+        </div>
+        {contact && (
+          <div className="text-[10px] opacity-70 truncate">{m.topic}</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-5 flex items-center gap-4">
+        <div
+          className={
+            'w-12 h-12 rounded-xl ring-1 grid place-items-center font-semibold ' +
+            ORIGIN_META[whoAmI].chip
+          }
+        >
+          {ORIGIN_META[whoAmI].label.slice(0, 1)}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+            Angemeldet als
+          </div>
+          <div className="text-lg font-semibold text-slate-900">
+            {ORIGIN_META[whoAmI].label}
+          </div>
+        </div>
+        <button
+          onClick={resetWho}
+          className="text-xs text-slate-500 hover:text-slate-900 px-3 py-1.5 rounded-lg hover:bg-slate-100"
+        >
+          Wechseln
+        </button>
+        <button
+          onClick={() => setTaskDrawer({ mode: 'new' })}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+        >
+          <PlusIcon className="w-4 h-4" />
+          Task
+        </button>
+      </section>
+
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard label="Meine Meetings" value={meetingCount} />
+        <StatCard label="Läuft gerade" value={runningNow} tone="live" />
+        <StatCard label="Bevorstehend" value={upcomingCount} tone="indigo" />
+        <StatCard label="Eigene Tasks" value={myTasks.length} tone="amber" />
+      </section>
+
+      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+        <FullCalendar
+          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+          initialView="timeGridWeek"
+          locale="de"
+          firstDay={1}
+          height="auto"
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'timeGridDay,timeGridWeek,dayGridMonth,listWeek'
+          }}
+          buttonText={{
+            today: 'Heute',
+            month: 'Monat',
+            week: 'Woche',
+            day: 'Tag',
+            list: 'Liste'
+          }}
+          events={events}
+          eventClick={handleEventClick}
+          eventContent={renderEventContent}
+          eventDisplay="block"
+          displayEventTime={false}
+          dayMaxEvents={4}
+          selectable
+          select={handleDateSelect}
+          nowIndicator
+          weekNumbers={false}
+          allDaySlot={false}
+          slotMinTime="07:00:00"
+          slotMaxTime="21:00:00"
+        />
+      </section>
+
+      {selectedMeeting && (
+        <MeetingDrawer
+          meeting={selectedMeeting}
+          contacts={contacts}
+          onClose={() => setSelectedMeeting(null)}
+          onLink={async (cid) => {
+            await onLinkMeeting(selectedMeeting.id, cid);
+            setSelectedMeeting({ ...selectedMeeting, contactId: cid ?? undefined });
+          }}
+          onCreateContact={() => {}}
+          onSetSellers={async (sellers) => {
+            await onSetSellers(selectedMeeting.id, sellers);
+            setSelectedMeeting({ ...selectedMeeting, assignedSellers: sellers });
+          }}
+        />
+      )}
+
+      {taskDrawer.mode !== 'closed' && (
+        <TaskDrawer
+          owner={whoAmI}
+          initial={taskDrawer.mode === 'edit' ? taskDrawer.task : null}
+          defaultDate={taskDrawer.mode === 'new' ? taskDrawer.defaultDate : undefined}
+          onClose={() => setTaskDrawer({ mode: 'closed' })}
+          onSave={async (input, id) => {
+            if (id) await onUpdateTask(id, input);
+            else await onCreateTask(input);
+            setTaskDrawer({ mode: 'closed' });
+          }}
+          onDelete={
+            taskDrawer.mode === 'edit'
+              ? async (id) => {
+                  await onDeleteTask(id);
+                  setTaskDrawer({ mode: 'closed' });
+                }
+              : undefined
+          }
+        />
+      )}
+    </main>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  tone
+}: {
+  label: string;
+  value: number;
+  tone?: 'live' | 'indigo' | 'amber';
+}) {
+  const dotCls =
+    tone === 'indigo'
+      ? 'bg-indigo-500'
+      : tone === 'amber'
+      ? 'bg-amber-500'
+      : 'bg-slate-400';
+  return (
+    <div className="bg-white rounded-xl ring-1 ring-slate-200 p-5">
+      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
+        {tone === 'live' ? (
+          <PulseDot className="w-1.5 h-1.5" />
+        ) : (
+          <span className={`w-1.5 h-1.5 rounded-full ${dotCls}`} />
+        )}
+        {label}
+      </div>
+      <div
+        className={
+          'mt-2 text-3xl font-semibold tabular-nums ' +
+          (tone === 'live' && value > 0 ? 'text-emerald-600' : 'text-slate-900')
+        }
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
