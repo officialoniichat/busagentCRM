@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import multer from 'multer';
 import * as zoom from './zoom.mjs';
-import { matchContactForTopic } from './match.mjs';
 import { getDb, getBucket, FieldValue } from './firestore.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -707,17 +706,14 @@ async function syncMeetings() {
   state.syncing = true;
   state.lastSyncError = null;
   try {
-    const [remote, existingSnap, contactsSnap] = await Promise.all([
+    const [remote, existingSnap] = await Promise.all([
       zoom.listMeetings(),
-      cMeetings.get(),
-      cContacts.get()
+      cMeetings.get()
     ]);
     const existingById = new Map(existingSnap.docs.map((d) => [d.id, d.data()]));
-    const contacts = contactsSnap.docs.map((d) => d.data());
 
     let added = 0;
     let updated = 0;
-    let autoLinked = 0;
     const remoteIds = new Set();
     const now = Date.now();
 
@@ -743,21 +739,16 @@ async function syncMeetings() {
         syncedAt: now,
         matchMode: prev?.matchMode || 'unlinked'
       };
-      if (prev?.contactId) merged.contactId = prev.contactId;
-      if (prev?.assignedSellers) merged.assignedSellers = prev.assignedSellers;
-
-      if (!merged.contactId || merged.matchMode === 'auto') {
-        const m = matchContactForTopic(merged.topic, contacts);
-        if (m) {
-          merged.contactId = m.contactId;
-          merged.matchMode = 'auto';
-          merged.matchScore = m.score;
-          if (!prev?.contactId) autoLinked++;
-        } else if (merged.matchMode === 'auto') {
-          delete merged.contactId;
-          merged.matchMode = 'unlinked';
-        }
+      // Only preserve manual links; never auto-match.
+      if (prev?.contactId && prev.matchMode === 'manual') {
+        merged.contactId = prev.contactId;
       }
+      if (prev?.assignedSellers) merged.assignedSellers = prev.assignedSellers;
+      if (prev?.reviewed) merged.reviewed = prev.reviewed;
+      if (prev?.reviewedAt) merged.reviewedAt = prev.reviewedAt;
+      if (prev?.reviewedBy) merged.reviewedBy = prev.reviewedBy;
+      if (prev?.reviewOutcome) merged.reviewOutcome = prev.reviewOutcome;
+      if (prev?.rescheduleHistory) merged.rescheduleHistory = prev.rescheduleHistory;
 
       if (!prev) added++;
       else {
@@ -791,7 +782,6 @@ async function syncMeetings() {
       added,
       updated,
       removed: removals.length,
-      autoLinked,
       at: now
     };
     console.log('[zoom-sync]', summary);
@@ -815,10 +805,42 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-app.listen(PORT, () => {
+async function unlinkAllAutoMatches() {
+  try {
+    const snap = await cMeetings.where('matchMode', '==', 'auto').get();
+    if (snap.empty) return 0;
+    let count = 0;
+    const chunks = [];
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      chunks.push(snap.docs.slice(i, i + 400));
+    }
+    for (const chunk of chunks) {
+      const batch = db.batch();
+      for (const doc of chunk) {
+        batch.update(doc.ref, {
+          contactId: FieldValue.delete(),
+          matchMode: 'unlinked',
+          matchScore: FieldValue.delete()
+        });
+        count++;
+      }
+      await batch.commit();
+    }
+    return count;
+  } catch (err) {
+    console.error('[unlink-auto-matches] error:', err.message || err);
+    return 0;
+  }
+}
+
+app.listen(PORT, async () => {
   console.log(`✓ CRM API läuft auf http://localhost:${PORT}`);
+  const cleaned = await unlinkAllAutoMatches();
+  if (cleaned > 0) {
+    console.log(`✓ ${cleaned} Auto-Matches gesäubert — nur manuelle Links bleiben`);
+  }
   if (zoom.hasCredentials()) {
-    console.log('✓ Zoom Credentials gefunden — starte initialen Sync');
+    console.log('✓ Zoom Credentials gefunden — starte initialen Sync (ohne Auto-Match)');
     syncMeetings().catch(() => {});
     setInterval(() => {
       syncMeetings().catch(() => {});
