@@ -286,6 +286,8 @@ export default function App() {
           meetings={meetings}
           contacts={contacts}
           onReview={handleReviewMeeting}
+          onReschedule={handleRescheduleMeeting}
+          onCreateTask={handleCreateTask}
         />
       ) : (
         <TasksView
