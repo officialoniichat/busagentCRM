@@ -40,17 +40,27 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
 
       {/* Headline Kennzahlen */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi label="Meetings gesamt" value={stats.meetingsTotal} />
-        <Kpi label="Kontakte gesamt" value={stats.contactsTotal} />
+        <Kpi
+          label="Meetings gesamt"
+          value={stats.meetingsTotal}
+          calc="Anzahl Dokumente in Firestore-Collection meetings (1 Doc pro Zoom-Meeting-ID, via Zoom-Sync alle 10 Min)."
+        />
+        <Kpi
+          label="Kontakte gesamt"
+          value={stats.contactsTotal}
+          calc="Anzahl Dokumente in Firestore-Collection contacts — nur im CRM angelegte Kunden, unabhängig von Zoom."
+        />
         <Kpi
           label="Tasks erledigt"
           value={stats.tasksDoneTotal}
           sub={`${stats.tasksTotal} gesamt`}
+          calc="Tasks mit done=true. Geteilt durch alle Tasks der Firestore-Collection tasks."
         />
         <Kpi
           label="Verschobene Meetings"
           value={stats.rescheduledTotal}
           sub={`${stats.noshowTotal} ausgefallen`}
+          calc="Summe aller rescheduleHistory[]-Einträge auf den Meetings (jedes Verschieben = 1 Eintrag). Ausgefallen = meetings.reviewOutcome='noshow'."
         />
       </section>
 
@@ -66,11 +76,25 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
           <PoolChart data={stats.monthlyPool} origin="F" />
           <PoolChart data={stats.monthlyPool} origin="T" />
         </div>
+        <CalcNote>
+          <b>Datenquelle:</b> contacts (Firestore) + meetings (Firestore).<br />
+          <b>X-Achse:</b> letzte 12 Monate, monatliche Buckets.<br />
+          <b>Pool-Linie (durchgezogen):</b> Anzahl Kontakte mit contact.origin = F/T UND
+          contact.createdAt &lt;= Ende des jeweiligen Monats (kumulativ, wächst monoton).<br />
+          <b>Meeting-Linie (gestrichelt):</b> Teilmenge der Pool-Kontakte, bei denen mindestens
+          ein Meeting mit meeting.contactId=contact.id UND meeting.startTime &lt;= Monatsende existiert.<br />
+          <b>Zählt nicht:</b> Kontakte ohne Origin-Wert; Meetings ohne verknüpften Kontakt.
+        </CalcNote>
       </Card>
 
       {/* Stufen-Breakdown Gesamt */}
       <Card title="Stufen-Verteilung aller Zoom-Kontakte">
         <StufenBar stats={stats} />
+        <CalcNote>
+          <b>Datenquelle:</b> contacts (Firestore).<br />
+          Pro Stufe (K, V, T) wird die Anzahl Kontakte gezählt, gruppiert nach contact.origin.<br />
+          <b>Zählt nicht:</b> Kontakte mit Origin D (Daniel/ITler — keine Vertriebszuweisung).
+        </CalcNote>
       </Card>
 
       {/* F vs T vergleich */}
@@ -79,6 +103,19 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
           <SellerScorecard origin="F" s={stats.perSeller.F} compareTo={stats.perSeller.T} />
           <SellerScorecard origin="T" s={stats.perSeller.T} compareTo={stats.perSeller.F} />
         </div>
+        <CalcNote>
+          <b>Kontakte gesamt:</b> contacts wo contact.origin = F bzw. T.<br />
+          <b>Meetings (Kunden-Origin):</b> meetings mit meeting.contactId, dessen Kontakt
+          contact.origin=F/T hat.<br />
+          <b>Meetings (als Teilnehmer):</b> meetings wo assignedSellers-Array F/T enthält (unabhängig vom Kunden).<br />
+          <b>Kunde im Testtermin:</b> contacts wo contact.stufe = 'T' UND origin = F/T.<br />
+          <b>Vorschau ohne Docs:</b> contacts wo contact.stufe = 'V' UND (contact.files ist leer oder fehlt).<br />
+          <b>Meetings verschoben:</b> meetings wo rescheduleHistory.length &gt; 0 UND Kontakt-Origin = F/T.<br />
+          <b>Meetings ausgefallen:</b> meetings wo reviewOutcome = 'noshow' UND Kontakt-Origin = F/T.<br />
+          <b>Tasks erledigt:</b> tasks wo owner = F/T UND done = true.<br />
+          <b>Verschoben durch:</b> Anzahl Einträge in rescheduleHistory[].by = F/T über alle Meetings.<br />
+          <b>±%:</b> Prozentuale Abweichung zum anderen Vertriebler.
+        </CalcNote>
       </Card>
 
       {/* Meetings über Zeit */}
@@ -96,6 +133,14 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
             </LineChart>
           </ResponsiveContainer>
         </div>
+        <CalcNote>
+          <b>Datenquelle:</b> meetings (Firestore) + contacts (Firestore).<br />
+          <b>X-Achse:</b> letzte 12 Kalenderwochen (Mo–So, Start am Montag), Label = Start der Woche DD.MM.<br />
+          <b>Y-Achse:</b> Anzahl Meetings, deren meeting.startTime in die Woche fällt UND
+          meeting.contactId existiert.<br />
+          Gruppiert nach contact.origin (F = Fabian, T = Theo). Meetings ohne Kontakt-Zuordnung
+          tauchen nicht auf.
+        </CalcNote>
       </Card>
 
       {/* Verschiebungen & Noshows pro Vertriebler */}
@@ -114,10 +159,15 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="text-xs text-slate-500 mt-2">
-          „Verschoben durch" zählt, wer die Verschiebungs-Aktion durchgeführt hat (jeder Reschedule).
-          „Kunde verschoben" / „Kunde ausgefallen" zählt nach Ursprungs-Vertriebler des Kontakts.
-        </div>
+        <CalcNote>
+          <b>Datenquelle:</b> meetings (Firestore) + rescheduleHistory[] pro Meeting.<br />
+          <b>Verschoben durch:</b> Summe aller Einträge in rescheduleHistory[] wo .by = Person. Zählt
+          Aktionen, nicht Meetings (ein Meeting kann mehrfach verschoben werden → mehrere Einträge).<br />
+          <b>Kunde ausgefallen:</b> Anzahl Meetings wo reviewOutcome = 'noshow' UND Kontakt mit
+          dieser Origin verknüpft ist. Daniel = 0 (ist nicht als Kunden-Origin möglich).<br />
+          <b>Meetings verschoben:</b> Anzahl Meetings wo rescheduleHistory.length &gt; 0 UND
+          Kontakt mit dieser Origin. Zählt Meetings, nicht Aktionen.
+        </CalcNote>
       </Card>
 
       {/* Tasks-Bilanz */}
@@ -136,6 +186,14 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
             </BarChart>
           </ResponsiveContainer>
         </div>
+        <CalcNote>
+          <b>Datenquelle:</b> tasks (Firestore), gruppiert nach task.owner.<br />
+          <b>Erledigt:</b> task.done = true.<br />
+          <b>Offen:</b> task.done ≠ true UND task.endAt &gt;= jetzt (noch in Zukunft).<br />
+          <b>Überfällig:</b> task.done ≠ true UND task.endAt &lt; jetzt (End-Zeit schon vorbei).<br />
+          <b>Hinweis:</b> Gruppierung nach task.owner (wem die Task zugewiesen ist) — nicht nach
+          task.doneBy (wer sie tatsächlich erledigt hat).
+        </CalcNote>
       </Card>
 
       {/* Vorschau-Risiko */}
@@ -167,6 +225,15 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
             );
           })}
         </div>
+        <CalcNote>
+          <b>Datenquelle:</b> contacts (Firestore).<br />
+          <b>Vorschau-Kunden:</b> contacts wo contact.stufe = 'V' (Vorschau).<br />
+          <b>Ohne Docs:</b> contact.files ist leer oder das Feld existiert nicht. Die Zahl
+          (groß, rot) ist die Anzahl riskanter Vorschau-Kunden pro Vertriebler — je höher,
+          desto mehr „versickerte" Kunden in der Pipeline.<br />
+          <b>Mit Docs %:</b> Anteil der Vorschau-Kunden, bei denen min. eine Datei hochgeladen
+          wurde (über Datei-Upload im Kontakt-Drawer → Firebase Storage).
+        </CalcNote>
       </Card>
     </main>
   );
@@ -238,9 +305,19 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
-function Kpi({ label, value, sub }: { label: string; value: number; sub?: string }) {
+function Kpi({
+  label,
+  value,
+  sub,
+  calc
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+  calc?: string;
+}) {
   return (
-    <div className="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+    <div className="bg-white rounded-xl ring-1 ring-slate-200 p-4 flex flex-col">
       <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">
         {label}
       </div>
@@ -248,6 +325,22 @@ function Kpi({ label, value, sub }: { label: string; value: number; sub?: string
         {value}
       </div>
       {sub && <div className="text-[11px] text-slate-400 mt-0.5">{sub}</div>}
+      {calc && (
+        <div className="text-[10px] text-slate-400 mt-2 pt-2 border-t border-slate-100 leading-snug">
+          {calc}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CalcNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 leading-relaxed">
+      <div className="font-semibold text-slate-600 uppercase tracking-wider text-[9px] mb-1.5">
+        Berechnung / Datenquelle
+      </div>
+      <div className="space-y-0.5">{children}</div>
     </div>
   );
 }
