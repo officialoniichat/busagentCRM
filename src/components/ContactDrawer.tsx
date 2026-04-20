@@ -5,6 +5,8 @@ import type { Activity, ActivityType, Contact, ContactFile, Meeting, NewContact,
 import { EMPTY_CONTACT, ORIGIN_META, STUFE_META, pickEditableFields } from '../types';
 import ContactTimeline from './ContactTimeline';
 
+const ADMIN_PASSWORD = 'Demo1234!';
+
 interface Props {
   initial: Contact | null;
   initialDraft?: Partial<NewContact>;
@@ -52,6 +54,25 @@ export default function ContactDrawer({
   );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [originUnlocked, setOriginUnlocked] = useState(false);
+  const originLocked = !!initial && !originUnlocked;
+
+  function tryChangeOrigin(next: Origin) {
+    if (!originLocked) {
+      update('origin', next);
+      return;
+    }
+    const pw = window.prompt(
+      'Die Origin eines bestehenden Kontakts kann nur mit Admin-Passwort geändert werden.'
+    );
+    if (pw === null) return;
+    if (pw !== ADMIN_PASSWORD) {
+      window.alert('Falsches Passwort.');
+      return;
+    }
+    setOriginUnlocked(true);
+    update('origin', next);
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -275,18 +296,33 @@ export default function ContactDrawer({
                 ))}
               </div>
             </Field>
-            <Field label="Origin">
+            <Field
+              label="Origin"
+              hint={originLocked ? '🔒 nur mit Admin-Passwort' : undefined}
+            >
               <div className="flex gap-2 flex-wrap">
-                {(['F', 'T'] as Origin[]).map((o) => (
-                  <button
-                    key={o}
-                    type="button"
-                    onClick={() => update('origin', o)}
-                    className={pickChipCls(form.origin === o, ORIGIN_META[o].chip)}
-                  >
-                    {ORIGIN_META[o].label}
-                  </button>
-                ))}
+                {(['F', 'T'] as Origin[]).map((o) => {
+                  const active = form.origin === o;
+                  const disabled = originLocked && !active;
+                  return (
+                    <button
+                      key={o}
+                      type="button"
+                      onClick={() => tryChangeOrigin(o)}
+                      className={
+                        pickChipCls(active, ORIGIN_META[o].chip) +
+                        (disabled ? ' opacity-50' : '')
+                      }
+                      title={
+                        originLocked
+                          ? 'Origin-Wechsel erfordert Admin-Passwort'
+                          : undefined
+                      }
+                    >
+                      {ORIGIN_META[o].label}
+                    </button>
+                  );
+                })}
               </div>
             </Field>
           </div>
