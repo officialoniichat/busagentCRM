@@ -100,6 +100,19 @@ export async function listMeetings() {
   return [...byId.values()];
 }
 
+export async function deleteMeeting(id) {
+  const token = await getToken();
+  const res = await fetch(`${BASE}/meetings/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (res.status === 204 || res.status === 200) return;
+  const text = await res.text().catch(() => '');
+  const err = new Error(`Zoom DELETE /meetings/${id} ${res.status}: ${text}`);
+  err.status = res.status;
+  throw err;
+}
+
 export async function getMeetingDetail(id) {
   return zoomGet(`/meetings/${id}`);
 }

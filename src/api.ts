@@ -74,6 +74,10 @@ export function linkMeeting(id: string, contactId: string | null): Promise<Meeti
   }).then((r) => handle<Meeting>(r));
 }
 
+export function deleteMeeting(id: string): Promise<void> {
+  return fetch(`${base}/meetings/${id}`, { method: 'DELETE' }).then((r) => handle<void>(r));
+}
+
 export function setMeetingSellers(id: string, assignedSellers: Origin[]): Promise<Meeting> {
   return fetch(`${base}/meetings/${id}`, {
     method: 'PATCH',

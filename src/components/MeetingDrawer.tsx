@@ -11,6 +11,7 @@ interface Props {
   onLink: (contactId: string | null) => Promise<void>;
   onCreateContact: () => void;
   onSetSellers: (sellers: Origin[]) => Promise<void>;
+  onDelete?: () => Promise<void>;
 }
 
 export default function MeetingDrawer({
@@ -19,7 +20,8 @@ export default function MeetingDrawer({
   onClose,
   onLink,
   onCreateContact,
-  onSetSellers
+  onSetSellers,
+  onDelete
 }: Props) {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -274,10 +276,81 @@ export default function MeetingDrawer({
               {err}
             </div>
           )}
+
+          {onDelete && (
+            <section className="pt-4 border-t border-slate-200">
+              <DeleteMeetingButton
+                meetingTopic={meeting.topic}
+                onDelete={async () => {
+                  setSaving(true);
+                  setErr(null);
+                  try {
+                    await onDelete();
+                  } catch (e) {
+                    setErr(e instanceof Error ? e.message : String(e));
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+              />
+            </section>
+          )}
         </div>
       </div>
     </div>,
     document.body
+  );
+}
+
+function DeleteMeetingButton({
+  meetingTopic,
+  onDelete,
+  disabled
+}: {
+  meetingTopic: string;
+  onDelete: () => Promise<void>;
+  disabled: boolean;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  if (!confirming) {
+    return (
+      <button
+        type="button"
+        onClick={() => setConfirming(true)}
+        disabled={disabled}
+        className="inline-flex items-center gap-2 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 6h18M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+        </svg>
+        Meeting bei Zoom löschen
+      </button>
+    );
+  }
+  return (
+    <div className="bg-rose-50 ring-1 ring-rose-200 rounded-lg p-3 space-y-2">
+      <p className="text-sm text-rose-900">
+        <strong>„{meetingTopic || 'Dieses Meeting'}"</strong> wird bei Zoom **und** im CRM gelöscht. Teilnehmer verlieren ihre Join-Links. Nicht rückgängig machbar.
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={disabled}
+          className="px-3 py-1.5 text-sm bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50"
+        >
+          {disabled ? 'Lösche…' : 'Endgültig löschen'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          disabled={disabled}
+          className="px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-100 rounded-lg disabled:opacity-50"
+        >
+          Abbrechen
+        </button>
+      </div>
+    </div>
   );
 }
 

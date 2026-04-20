@@ -21,6 +21,7 @@ interface Props {
   onCreateContact: (input: NewContact) => Promise<Contact>;
   onSetSellers: (meetingId: string, sellers: import('../types').Origin[]) => Promise<void>;
   onCreateMeeting: (input: NewMeeting) => Promise<Meeting>;
+  onDeleteMeeting: (meetingId: string) => Promise<void>;
 }
 
 function extractContactHintFromTopic(topic: string): Partial<NewContact> {
@@ -44,7 +45,8 @@ export default function CalendarView({
   onLinkMeeting,
   onCreateContact,
   onSetSellers,
-  onCreateMeeting
+  onCreateMeeting,
+  onDeleteMeeting
 }: Props) {
   const [selected, setSelected] = useState<Meeting | null>(null);
   const [creatingForMeeting, setCreatingForMeeting] = useState<Meeting | null>(null);
@@ -223,6 +225,10 @@ export default function CalendarView({
             setSelected(updated ? { ...updated, contactId: cid ?? undefined } : null);
           }}
           onCreateContact={() => setCreatingForMeeting(selected)}
+          onDelete={async () => {
+            await onDeleteMeeting(selected.id);
+            setSelected(null);
+          }}
           onSetSellers={async (sellers) => {
             await onSetSellers(selected.id, sellers);
             setSelected({ ...selected, assignedSellers: sellers });

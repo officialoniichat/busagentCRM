@@ -302,6 +302,27 @@ app.post('/api/meetings', async (req, res) => {
   res.status(201).json(stored);
 });
 
+app.delete('/api/meetings/:id', async (req, res) => {
+  try {
+    const ref = cMeetings.doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Not found' });
+    if (zoom.hasCredentials()) {
+      try {
+        await zoom.deleteMeeting(req.params.id);
+      } catch (err) {
+        if (err.status !== 404) {
+          return res.status(502).json({ error: err.message || String(err) });
+        }
+      }
+    }
+    await ref.delete();
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
 app.patch('/api/meetings/:id', async (req, res) => {
   try {
     const ref = cMeetings.doc(req.params.id);

@@ -130,6 +130,11 @@ export default function App() {
     []
   );
 
+  const handleDeleteMeeting = useCallback(async (meetingId: string) => {
+    await api.deleteMeeting(meetingId);
+    setMeetings((prev) => prev.filter((m) => m.id !== meetingId));
+  }, []);
+
   const handleCreateMeeting = useCallback(async (input: NewMeeting) => {
     const created = await api.createMeeting(input);
     setMeetings((prev) => {
@@ -202,6 +207,7 @@ export default function App() {
           onCreateContact={handleSaveContact}
           onSetSellers={handleSetSellers}
           onCreateMeeting={handleCreateMeeting}
+          onDeleteMeeting={handleDeleteMeeting}
         />
       ) : (
         <TasksView
@@ -210,6 +216,7 @@ export default function App() {
           tasks={tasks}
           onLinkMeeting={handleLinkMeeting}
           onSetSellers={handleSetSellers}
+          onDeleteMeeting={handleDeleteMeeting}
           onCreateTask={handleCreateTask}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
