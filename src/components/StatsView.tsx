@@ -81,48 +81,6 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
         </div>
       </Card>
 
-      {/* Origin vs Teilnahme */}
-      <Card title="Kunden-Origin vs. Teilnahme — worauf Meetings zurückzuführen sind">
-        <p className="text-xs text-slate-500 mb-3 leading-relaxed">
-          <strong>Kunden-Origin</strong> = der Vertriebler, auf den der Kunde ursprünglich
-          zurückgeht (Feld „Origin" im Kontakt). <strong>Teilnehmer</strong> = wer
-          laut „Im Call" tatsächlich im Meeting war (kann mehrfach zählen, wenn beide drin
-          sind). Bei {stats.meetingsWithoutOrigin} Meetings ist kein Kunde zugeordnet.
-        </p>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={[
-                {
-                  metric: 'Kunden-Origin',
-                  Fabian: stats.perSeller.F.meetingsByOrigin,
-                  Theo: stats.perSeller.T.meetingsByOrigin,
-                  Daniel: stats.perSeller.D.meetingsByOrigin,
-                  Ohne: stats.meetingsWithoutOrigin
-                },
-                {
-                  metric: 'Teilnahme',
-                  Fabian: stats.perSeller.F.meetingsAsParticipant,
-                  Theo: stats.perSeller.T.meetingsAsParticipant,
-                  Daniel: stats.perSeller.D.meetingsAsParticipant,
-                  Ohne: 0
-                }
-              ]}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="metric" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Fabian" fill={SELLER_COLORS.F} />
-              <Bar dataKey="Theo" fill={SELLER_COLORS.T} />
-              <Bar dataKey="Daniel" fill={SELLER_COLORS.D} />
-              <Bar dataKey="Ohne" fill="#cbd5e1" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
-
       {/* Meetings über Zeit */}
       <Card title="Meetings pro Woche — nach Kunden-Origin">
         <div className="h-72">
