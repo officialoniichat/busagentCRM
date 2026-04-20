@@ -7,7 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import type { DateClickArg } from '@fullcalendar/interaction';
 import type { DateSelectArg, EventClickArg, EventContentArg } from '@fullcalendar/core';
 import type { Contact, Meeting, NewContact, NewMeeting } from '../types';
-import { meetingState } from '../types';
+import { meetingState, vorschauHighlight } from '../types';
 import MeetingDrawer from './MeetingDrawer';
 import ContactDrawer from './ContactDrawer';
 import MeetingCreateDrawer from './MeetingCreateDrawer';
@@ -77,6 +77,7 @@ export default function CalendarView({
       const start = m.startTime!;
       const endDate = new Date(Date.parse(start) + (m.duration || 30) * 60000);
       const state = meetingState(m.startTime, m.duration);
+      const vh = vorschauHighlight(contact);
       return {
         id: m.id,
         title: m.topic || 'Ohne Titel',
@@ -88,7 +89,9 @@ export default function CalendarView({
           contact ? 'crm-ev-linked' : 'crm-ev-unlinked',
           m.matchMode === 'auto' ? 'crm-ev-auto' : '',
           state === 'running' ? 'crm-ev-live' : '',
-          state === 'past' ? 'crm-ev-past' : ''
+          state === 'past' ? 'crm-ev-past' : '',
+          vh === 'needs-files' ? 'crm-ev-vorschau-needs-files' : '',
+          vh === 'has-files' ? 'crm-ev-vorschau-has-files' : ''
         ]
       };
     });

@@ -6,7 +6,7 @@ import listPlugin from '@fullcalendar/list';
 import interactionPlugin from '@fullcalendar/interaction';
 import type { DateSelectArg, EventClickArg, EventContentArg } from '@fullcalendar/core';
 import type { Contact, Meeting, NewTask, Origin, Task } from '../types';
-import { ORIGIN_META, meetingState } from '../types';
+import { ORIGIN_META, meetingState, vorschauHighlight } from '../types';
 import MeetingDrawer from './MeetingDrawer';
 import TaskDrawer from './TaskDrawer';
 import { PlusIcon, PulseDot } from './Icons';
@@ -83,6 +83,7 @@ export default function TasksView({
       const start = m.startTime!;
       const endDate = new Date(Date.parse(start) + (m.duration || 30) * 60000);
       const state = meetingState(m.startTime, m.duration);
+      const vh = vorschauHighlight(contact);
       return {
         id: `m-${m.id}`,
         title: contact ? (contact.name || contact.unternehmen || m.topic) : m.topic,
@@ -93,7 +94,9 @@ export default function TasksView({
           'crm-ev',
           'crm-ev-linked',
           state === 'running' ? 'crm-ev-live' : '',
-          state === 'past' ? 'crm-ev-past' : ''
+          state === 'past' ? 'crm-ev-past' : '',
+          vh === 'needs-files' ? 'crm-ev-vorschau-needs-files' : '',
+          vh === 'has-files' ? 'crm-ev-vorschau-has-files' : ''
         ]
       };
     });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ActivityType, Contact, Meeting, NewContact, Origin, Stufe } from '../types';
-import { ORIGIN_META, STUFE_META, meetingState } from '../types';
+import type { ActivityType, Contact, Meeting, NewContact, Origin, Stufe, VorschauHighlight } from '../types';
+import { ORIGIN_META, STUFE_META, meetingState, vorschauHighlight } from '../types';
 import ContactDrawer from './ContactDrawer';
 import { PulseDot } from './Icons';
 
@@ -332,11 +332,18 @@ function ContactTable({
           <tbody className="divide-y divide-slate-100">
             {contacts.map((c) => {
               const stats = meetingStatsByContact.get(c.id) || { total: 0, running: 0, upcoming: 0 };
+              const vh = vorschauHighlight(c);
+              const rowCls =
+                vh === 'needs-files'
+                  ? 'bg-rose-50/40 hover:bg-rose-50 cursor-pointer transition-colors border-l-4 border-rose-500'
+                  : vh === 'has-files'
+                  ? 'bg-emerald-50/40 hover:bg-emerald-50 cursor-pointer transition-colors border-l-4 border-emerald-500'
+                  : 'hover:bg-slate-50 cursor-pointer transition-colors';
               return (
                 <tr
                   key={c.id}
                   onClick={() => onRowClick(c)}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
+                  className={rowCls}
                 >
                   <td className="px-6 py-4 min-w-[220px]">
                     <div className="font-medium text-slate-900">
@@ -413,7 +420,7 @@ function ContactTable({
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <StufeBadge stufe={c.stufe} />
+                    <StufeBadge stufe={c.stufe} highlight={vorschauHighlight(c)} />
                   </td>
                   <td className="px-6 py-4">
                     <OriginBadge origin={c.origin} />
@@ -428,7 +435,29 @@ function ContactTable({
   );
 }
 
-function StufeBadge({ stufe }: { stufe: Stufe }) {
+function StufeBadge({
+  stufe,
+  highlight
+}: {
+  stufe: Stufe;
+  highlight?: VorschauHighlight;
+}) {
+  if (highlight === 'needs-files') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 bg-rose-600 text-white ring-rose-700">
+        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+        Vorschau · Docs fehlen
+      </span>
+    );
+  }
+  if (highlight === 'has-files') {
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 bg-emerald-600 text-white ring-emerald-700">
+        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+        Vorschau · Docs OK
+      </span>
+    );
+  }
   const meta = STUFE_META[stufe];
   return (
     <span

@@ -92,6 +92,24 @@
   border: none;
 }
 
+/* VORSCHAU-Highlight — Kontakt in Stufe V ohne Dokumente → rot */
+.fc .fc-event.crm-ev-vorschau-needs-files,
+.fc .fc-event.crm-ev-vorschau-needs-files.crm-ev-linked,
+.fc .fc-event.crm-ev-vorschau-needs-files.crm-ev-unlinked {
+  background: rgb(225 29 72);
+  color: white;
+  outline: 2px solid rgb(244 63 94);
+}
+
+/* VORSCHAU-Highlight — Kontakt in Stufe V mit Dokumenten → grün */
+.fc .fc-event.crm-ev-vorschau-has-files,
+.fc .fc-event.crm-ev-vorschau-has-files.crm-ev-linked,
+.fc .fc-event.crm-ev-vorschau-has-files.crm-ev-unlinked {
+  background: rgb(5 150 105);
+  color: white;
+  outline: 2px solid rgb(16 185 129);
+}
+
 /* LIVE — currently running (beats linked/unlinked colors) */
 .fc .fc-event.crm-ev-live,
 .fc .fc-event.crm-ev-live.crm-ev-linked,

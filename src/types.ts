@@ -194,6 +194,15 @@ export interface SyncStatus {
   syncing: boolean;
 }
 
+export type VorschauHighlight = 'needs-files' | 'has-files' | null;
+
+export function vorschauHighlight(
+  contact: Pick<Contact, 'stufe' | 'files'> | null | undefined
+): VorschauHighlight {
+  if (!contact || contact.stufe !== 'V') return null;
+  return (contact.files?.length || 0) > 0 ? 'has-files' : 'needs-files';
+}
+
 export function pickEditableFields(c: Contact): NewContact {
   return {
     name: c.name,

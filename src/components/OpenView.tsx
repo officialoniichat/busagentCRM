@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Contact, Meeting, Stufe } from '../types';
-import { STUFE_META, meetingState } from '../types';
+import { STUFE_META, meetingState, vorschauHighlight } from '../types';
 import { ActivityIcon, CheckIcon, XIcon } from './Icons';
 
 interface Props {
@@ -112,9 +112,16 @@ function ReviewCard({
   }
 
   const stufeChanged = newStufe !== contact.stufe;
+  const vh = vorschauHighlight(contact);
+  const cardCls =
+    vh === 'needs-files'
+      ? 'bg-white rounded-xl ring-1 ring-rose-300 border-l-4 border-rose-500 p-5 space-y-4'
+      : vh === 'has-files'
+      ? 'bg-white rounded-xl ring-1 ring-emerald-300 border-l-4 border-emerald-500 p-5 space-y-4'
+      : 'bg-white rounded-xl ring-1 ring-slate-200 p-5 space-y-4';
 
   return (
-    <div className="bg-white rounded-xl ring-1 ring-slate-200 p-5 space-y-4">
+    <div className={cardCls}>
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white grid place-items-center font-semibold flex-none">
           {(contact.name || contact.unternehmen || '?').slice(0, 1).toUpperCase()}
