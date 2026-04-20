@@ -67,8 +67,50 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
         </div>
       </Card>
 
+      {/* Origin vs Teilnahme */}
+      <Card title="Kunden-Origin vs. Teilnahme — worauf Meetings zurückzuführen sind">
+        <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+          <strong>Kunden-Origin</strong> = der Vertriebler, auf den der Kunde ursprünglich
+          zurückgeht (Feld „Origin" im Kontakt). <strong>Teilnehmer</strong> = wer
+          laut „Im Call" tatsächlich im Meeting war (kann mehrfach zählen, wenn beide drin
+          sind). Bei {stats.meetingsWithoutOrigin} Meetings ist kein Kunde zugeordnet.
+        </p>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={[
+                {
+                  metric: 'Kunden-Origin',
+                  Fabian: stats.perSeller.F.meetingsByOrigin,
+                  Theo: stats.perSeller.T.meetingsByOrigin,
+                  Daniel: stats.perSeller.D.meetingsByOrigin,
+                  Ohne: stats.meetingsWithoutOrigin
+                },
+                {
+                  metric: 'Teilnahme',
+                  Fabian: stats.perSeller.F.meetingsAsParticipant,
+                  Theo: stats.perSeller.T.meetingsAsParticipant,
+                  Daniel: stats.perSeller.D.meetingsAsParticipant,
+                  Ohne: 0
+                }
+              ]}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="metric" tick={{ fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="Fabian" fill={SELLER_COLORS.F} />
+              <Bar dataKey="Theo" fill={SELLER_COLORS.T} />
+              <Bar dataKey="Daniel" fill={SELLER_COLORS.D} />
+              <Bar dataKey="Ohne" fill="#cbd5e1" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
       {/* Meetings über Zeit */}
-      <Card title="Meetings pro Woche — nach Vertriebler">
+      <Card title="Meetings pro Woche — nach Kunden-Origin">
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={stats.weeklyMeetings}>
@@ -264,7 +306,16 @@ function SellerScorecard({
         <span className="text-[10px] uppercase tracking-wider text-slate-500">{meta.role}</span>
       </div>
       <Row label="Kontakte gesamt" value={s.contacts} compareValue={compareTo.contacts} />
-      <Row label="Zoom-Meetings" value={s.meetings} compareValue={compareTo.meetings} />
+      <Row
+        label="Meetings (Kunden-Origin)"
+        value={s.meetingsByOrigin}
+        compareValue={compareTo.meetingsByOrigin}
+      />
+      <Row
+        label="Meetings (als Teilnehmer)"
+        value={s.meetingsAsParticipant}
+        compareValue={compareTo.meetingsAsParticipant}
+      />
       <Row label="Kunde im Testtermin" value={s.byStufe.T} compareValue={compareTo.byStufe.T} />
       <Row
         label="Vorschau ohne Docs"
@@ -296,7 +347,10 @@ function SellerScorecard({
 
 interface SellerStats {
   contacts: number;
-  meetings: number;
+  /** Meetings wo der verknüpfte Kontakt diesen Vertriebler als Origin hat */
+  meetingsByOrigin: number;
+  /** Meetings wo dieser Vertriebler als Teilnehmer (assignedSellers) eingetragen ist */
+  meetingsAsParticipant: number;
   byStufe: Record<Stufe, number>;
   vorschauTotal: number;
   vorschauHasFiles: number;
@@ -313,7 +367,8 @@ interface SellerStats {
 function emptySellerStats(): SellerStats {
   return {
     contacts: 0,
-    meetings: 0,
+    meetingsByOrigin: 0,
+    meetingsAsParticipant: 0,
     byStufe: { K: 0, V: 0, T: 0 },
     vorschauTotal: 0,
     vorschauHasFiles: 0,
@@ -349,17 +404,31 @@ function computeStats(contacts: Contact[], meetings: Meeting[], tasks: Task[]) {
 
   let rescheduledTotal = 0;
   let noshowTotal = 0;
+  let meetingsWithOrigin = 0;
+  let meetingsWithoutOrigin = 0;
 
   for (const m of meetings) {
     if (m.contactId) {
       const contact = contactById.get(m.contactId);
       if (contact) {
-        perSeller[contact.origin].meetings += 1;
+        meetingsWithOrigin += 1;
+        perSeller[contact.origin].meetingsByOrigin += 1;
         const wasRescheduled = (m.rescheduleHistory?.length || 0) > 0;
         if (wasRescheduled) perSeller[contact.origin].meetingsRescheduled += 1;
         if (m.reviewOutcome === 'noshow') perSeller[contact.origin].meetingsNoshow += 1;
+      } else {
+        meetingsWithoutOrigin += 1;
+      }
+    } else {
+      meetingsWithoutOrigin += 1;
+    }
+
+    for (const s of m.assignedSellers || []) {
+      if (s === 'F' || s === 'T' || s === 'D') {
+        perSeller[s].meetingsAsParticipant += 1;
       }
     }
+
     if (m.rescheduleHistory) {
       for (const ev of m.rescheduleHistory) {
         if (ev.by === 'F' || ev.by === 'T' || ev.by === 'D') {
@@ -449,6 +518,8 @@ function computeStats(contacts: Contact[], meetings: Meeting[], tasks: Task[]) {
 
   return {
     meetingsTotal: meetings.length,
+    meetingsWithOrigin,
+    meetingsWithoutOrigin,
     contactsTotal: contacts.length,
     tasksTotal: tasks.length,
     tasksDoneTotal,
