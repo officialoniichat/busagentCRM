@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { FormEvent, ReactNode } from 'react';
-import type { Activity, ActivityType, Contact, Meeting, NewContact, Origin, Stufe } from '../types';
+import type { Activity, ActivityType, Contact, ContactFile, Meeting, NewContact, Origin, Stufe } from '../types';
 import { EMPTY_CONTACT, ORIGIN_META, STUFE_META, pickEditableFields } from '../types';
 import ContactTimeline from './ContactTimeline';
 
@@ -22,6 +22,10 @@ interface Props {
     timestamp?: number;
   }) => Promise<void>;
   onDeleteActivity?: (activityId: string) => Promise<void>;
+  files?: ContactFile[];
+  onUploadFile?: (file: File) => Promise<void>;
+  onDeleteFile?: (fileId: string) => Promise<void>;
+  downloadUrlFor?: (fileId: string) => string;
 }
 
 export default function ContactDrawer({
@@ -35,7 +39,11 @@ export default function ContactDrawer({
   onDelete,
   onUnlinkMeeting,
   onAddActivity,
-  onDeleteActivity
+  onDeleteActivity,
+  files = [],
+  onUploadFile,
+  onDeleteFile,
+  downloadUrlFor
 }: Props) {
   const [form, setForm] = useState<NewContact>(() =>
     initial
@@ -217,6 +225,15 @@ export default function ContactDrawer({
             />
           )}
 
+          {initial && onUploadFile && onDeleteFile && downloadUrlFor && (
+            <FilesSection
+              files={files}
+              onUpload={onUploadFile}
+              onDelete={onDeleteFile}
+              downloadUrlFor={downloadUrlFor}
+            />
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <Field label="Stufe">
               <div className="flex gap-2 flex-wrap">
@@ -322,5 +339,131 @@ function pickChipCls(active: boolean, activeCls: string) {
       ? activeCls
       : 'bg-white text-slate-600 ring-slate-200 hover:ring-slate-300')
   );
+}
+
+function FilesSection({
+  files,
+  onUpload,
+  onDelete,
+  downloadUrlFor
+}: {
+  files: ContactFile[];
+  onUpload: (file: File) => Promise<void>;
+  onDelete: (fileId: string) => Promise<void>;
+  downloadUrlFor: (fileId: string) => string;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setErr(null);
+    try {
+      await onUpload(file);
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : String(e2));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const sorted = [...files].sort((a, b) => b.uploadedAt - a.uploadedAt);
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="text-xs font-medium text-slate-700 uppercase tracking-wider">
+          Dokumente
+        </span>
+        <label
+          className={
+            'text-xs font-medium inline-flex items-center gap-1 cursor-pointer ' +
+            (uploading
+              ? 'text-slate-400 cursor-wait'
+              : 'text-indigo-700 hover:text-indigo-900')
+          }
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          {uploading ? 'Lädt hoch…' : 'Datei hochladen'}
+          <input
+            type="file"
+            onChange={handlePick}
+            disabled={uploading}
+            className="hidden"
+          />
+        </label>
+      </div>
+
+      {sorted.length === 0 ? (
+        <div className="text-xs text-slate-400 italic py-2">
+          Noch keine Dokumente. Max 25 MB pro Datei.
+        </div>
+      ) : (
+        <ul className="divide-y divide-slate-100 ring-1 ring-slate-200 rounded-lg">
+          {sorted.map((f) => (
+            <li key={f.id} className="px-3 py-2.5 flex items-center gap-3 group">
+              <svg
+                className="w-5 h-5 text-slate-400 flex-none"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-slate-900 font-medium truncate">{f.name}</div>
+                <div className="text-xs text-slate-500">
+                  {formatSize(f.size)} ·{' '}
+                  {new Date(f.uploadedAt).toLocaleString('de-DE', {
+                    dateStyle: 'short',
+                    timeStyle: 'short'
+                  })}
+                </div>
+              </div>
+              <a
+                href={downloadUrlFor(f.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-indigo-700 hover:text-indigo-900 px-2 py-1 rounded hover:bg-indigo-50"
+              >
+                Öffnen
+              </a>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`„${f.name}" löschen?`)) onDelete(f.id);
+                }}
+                className="text-slate-400 hover:text-rose-600 w-6 h-6 grid place-items-center rounded hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Datei löschen"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {err && (
+        <div className="mt-2 bg-rose-50 ring-1 ring-rose-200 rounded-lg p-2 text-xs text-rose-700">
+          {err}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 

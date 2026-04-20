@@ -22,6 +22,8 @@ interface Props {
     input: { type: ActivityType; title: string; body?: string; timestamp?: number }
   ) => Promise<void>;
   onDeleteActivity: (contactId: string, activityId: string) => Promise<void>;
+  onUploadFile: (contactId: string, file: File) => Promise<void>;
+  onDeleteFile: (contactId: string, fileId: string) => Promise<void>;
 }
 
 export default function ContactsView({
@@ -33,7 +35,9 @@ export default function ContactsView({
   onDelete,
   onLinkMeeting,
   onAddActivity,
-  onDeleteActivity
+  onDeleteActivity,
+  onUploadFile,
+  onDeleteFile
 }: Props) {
   const [search, setSearch] = useState('');
   const [stufeFilter, setStufeFilter] = useState<Stufe | null>(null);
@@ -199,6 +203,22 @@ export default function ContactsView({
           onDeleteActivity={
             liveDrawerContact
               ? (aid) => onDeleteActivity(liveDrawerContact.id, aid)
+              : undefined
+          }
+          files={liveDrawerContact?.files || []}
+          onUploadFile={
+            liveDrawerContact
+              ? (file) => onUploadFile(liveDrawerContact.id, file)
+              : undefined
+          }
+          onDeleteFile={
+            liveDrawerContact
+              ? (fid) => onDeleteFile(liveDrawerContact.id, fid)
+              : undefined
+          }
+          downloadUrlFor={
+            liveDrawerContact
+              ? (fid) => `/api/contacts/${liveDrawerContact.id}/files/${fid}/download`
               : undefined
           }
         />

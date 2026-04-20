@@ -18,6 +18,7 @@ export interface Contact {
   createdAt: number;
   updatedAt: number;
   activities?: Activity[];
+  files?: ContactFile[];
 }
 
 export type NewContact = Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>;
@@ -149,6 +150,18 @@ export interface Meeting {
   matchMode: MatchMode;
   matchScore?: number;
   assignedSellers?: Origin[];
+  reviewed?: boolean;
+  reviewedAt?: number;
+  reviewOutcome?: 'happened' | 'noshow';
+}
+
+export interface ContactFile {
+  id: string;
+  name: string;
+  storagePath: string;
+  contentType: string;
+  size: number;
+  uploadedAt: number;
 }
 
 export interface NewMeeting {

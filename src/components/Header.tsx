@@ -1,6 +1,6 @@
 import type { SyncStatus } from '../types';
 
-export type TabName = 'contacts' | 'calendar' | 'tasks';
+export type TabName = 'contacts' | 'calendar' | 'tasks' | 'open';
 
 interface Props {
   tab: TabName;
@@ -9,6 +9,7 @@ interface Props {
   onSync: () => void;
   syncing: boolean;
   status: SyncStatus | null;
+  openCount: number;
 }
 
 export default function Header({
@@ -17,7 +18,8 @@ export default function Header({
   onAddContact,
   onSync,
   syncing,
-  status
+  status,
+  openCount
 }: Props) {
   const lastSync = status?.lastSyncAt
     ? new Date(status.lastSyncAt).toLocaleTimeString('de-DE', {
@@ -50,6 +52,23 @@ export default function Header({
           </TabButton>
           <TabButton active={tab === 'tasks'} onClick={() => onTabChange('tasks')}>
             Tasks
+          </TabButton>
+          <TabButton active={tab === 'open'} onClick={() => onTabChange('open')}>
+            <span className="flex items-center gap-1.5">
+              Offen
+              {openCount > 0 && (
+                <span
+                  className={
+                    'inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold ' +
+                    (tab === 'open'
+                      ? 'bg-rose-100 text-rose-700'
+                      : 'bg-rose-500 text-white')
+                  }
+                >
+                  {openCount}
+                </span>
+              )}
+            </span>
           </TabButton>
         </nav>
 

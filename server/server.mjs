@@ -3,9 +3,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import multer from 'multer';
 import * as zoom from './zoom.mjs';
 import { matchContactForTopic } from './match.mjs';
-import { getDb, FieldValue } from './firestore.mjs';
+import { getDb, getBucket, FieldValue } from './firestore.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -170,6 +171,113 @@ app.post('/api/contacts/:id/activities', async (req, res) => {
   }
 });
 
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }
+});
+
+app.post(
+  '/api/contacts/:id/files',
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      const ref = cContacts.doc(req.params.id);
+      const snap = await ref.get();
+      if (!snap.exists) return res.status(404).json({ error: 'Contact not found' });
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+      const fileId = crypto.randomUUID();
+      const safeName = req.file.originalname.replace(/[^\w.\- ]+/g, '_');
+      const storagePath = `contacts/${req.params.id}/${fileId}_${safeName}`;
+
+      const bucket = getBucket();
+      const fileRef = bucket.file(storagePath);
+      await fileRef.save(req.file.buffer, {
+        metadata: {
+          contentType: req.file.mimetype,
+          metadata: {
+            contactId: req.params.id,
+            originalName: req.file.originalname
+          }
+        }
+      });
+
+      const meta = {
+        id: fileId,
+        name: req.file.originalname,
+        storagePath,
+        contentType: req.file.mimetype || 'application/octet-stream',
+        size: req.file.size,
+        uploadedAt: Date.now()
+      };
+
+      await ref.update({
+        files: FieldValue.arrayUnion(meta),
+        updatedAt: meta.uploadedAt
+      });
+
+      res.status(201).json(meta);
+    } catch (err) {
+      res.status(500).json({ error: err.message || String(err) });
+    }
+  }
+);
+
+app.get('/api/contacts/:id/files/:fid/download', async (req, res) => {
+  try {
+    const snap = await cContacts.doc(req.params.id).get();
+    if (!snap.exists) return res.status(404).json({ error: 'Contact not found' });
+    const files = snap.data().files || [];
+    const file = files.find((f) => f.id === req.params.fid);
+    if (!file) return res.status(404).json({ error: 'File not found' });
+
+    const bucketFile = getBucket().file(file.storagePath);
+    const [exists] = await bucketFile.exists();
+    if (!exists) return res.status(404).json({ error: 'File missing in Storage' });
+
+    res.setHeader('Content-Type', file.contentType || 'application/octet-stream');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${encodeURIComponent(file.name)}"`
+    );
+    bucketFile.createReadStream().on('error', (e) => {
+      console.error('[storage-download]', e);
+      if (!res.headersSent) res.status(500).end();
+    }).pipe(res);
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+app.delete('/api/contacts/:id/files/:fid', async (req, res) => {
+  try {
+    const ref = cContacts.doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Contact not found' });
+    const contact = snap.data();
+    const files = contact.files || [];
+    const file = files.find((f) => f.id === req.params.fid);
+    if (!file) return res.status(404).json({ error: 'File not found' });
+
+    try {
+      await getBucket().file(file.storagePath).delete();
+    } catch (err) {
+      if (err.code !== 404) {
+        console.warn('[storage-delete]', err.message);
+      }
+    }
+
+    await ref.update({
+      files: files.filter((f) => f.id !== req.params.fid),
+      updatedAt: Date.now()
+    });
+
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
 app.delete('/api/contacts/:id/activities/:aid', async (req, res) => {
   try {
     const ref = cContacts.doc(req.params.id);
@@ -300,6 +408,82 @@ app.post('/api/meetings', async (req, res) => {
   await cMeetings.doc(id).set(meeting, { merge: true });
   const stored = (await cMeetings.doc(id).get()).data();
   res.status(201).json(stored);
+});
+
+app.post('/api/meetings/:id/review', async (req, res) => {
+  try {
+    const ref = cMeetings.doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Not found' });
+    const meeting = snap.data();
+
+    const outcome = req.body?.outcome;
+    if (outcome !== 'happened' && outcome !== 'noshow') {
+      return res.status(400).json({ error: 'outcome must be happened|noshow' });
+    }
+    const newStufe = req.body?.newStufe;
+    if (newStufe && !['K', 'V', 'T'].includes(newStufe)) {
+      return res.status(400).json({ error: 'newStufe must be K|V|T' });
+    }
+    const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+
+    const now = Date.now();
+    await ref.update({
+      reviewed: true,
+      reviewedAt: now,
+      reviewOutcome: outcome
+    });
+
+    if (meeting.contactId) {
+      const cRef = cContacts.doc(meeting.contactId);
+      const cSnap = await cRef.get();
+      if (cSnap.exists) {
+        const contact = cSnap.data();
+        const updates = { updatedAt: now };
+        const newActivities = [];
+
+        if (outcome === 'happened') {
+          newActivities.push({
+            id: crypto.randomUUID(),
+            type: 'notiz',
+            timestamp: meeting.startTime ? Date.parse(meeting.startTime) : now,
+            createdAt: now,
+            title: `Zoom-Call stattgefunden: ${meeting.topic || 'Meeting'}`,
+            ...(note ? { body: note } : {})
+          });
+        } else {
+          newActivities.push({
+            id: crypto.randomUUID(),
+            type: 'notiz',
+            timestamp: now,
+            createdAt: now,
+            title: `Zoom-Call nicht stattgefunden: ${meeting.topic || 'Meeting'}`,
+            ...(note ? { body: note } : {})
+          });
+        }
+
+        if (newStufe && newStufe !== contact.stufe) {
+          updates.stufe = newStufe;
+          newActivities.push({
+            id: crypto.randomUUID(),
+            type: 'stufenwechsel',
+            timestamp: now,
+            createdAt: now,
+            title: `Stufe: ${STUFE_LABEL[contact.stufe] || contact.stufe} → ${STUFE_LABEL[newStufe] || newStufe}`,
+            meta: { fromStufe: contact.stufe, toStufe: newStufe }
+          });
+        }
+
+        updates.activities = FieldValue.arrayUnion(...newActivities);
+        await cRef.update(updates);
+      }
+    }
+
+    const next = (await ref.get()).data();
+    res.json(next);
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
 });
 
 app.delete('/api/meetings/:id', async (req, res) => {

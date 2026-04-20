@@ -6,6 +6,8 @@ import type { TabName } from './components/Header';
 import ContactsView from './components/ContactsView';
 import CalendarView from './components/CalendarView';
 import TasksView from './components/TasksView';
+import OpenView from './components/OpenView';
+import { meetingState } from './types';
 
 type Tab = TabName;
 
@@ -114,6 +116,34 @@ export default function App() {
     []
   );
 
+  const handleUploadFile = useCallback(
+    async (contactId: string, file: File) => {
+      const meta = await api.uploadContactFile(contactId, file);
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === contactId
+            ? { ...c, files: [...(c.files || []), meta] }
+            : c
+        )
+      );
+    },
+    []
+  );
+
+  const handleDeleteFile = useCallback(
+    async (contactId: string, fileId: string) => {
+      await api.deleteContactFile(contactId, fileId);
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === contactId
+            ? { ...c, files: (c.files || []).filter((f) => f.id !== fileId) }
+            : c
+        )
+      );
+    },
+    []
+  );
+
   const handleLinkMeeting = useCallback(
     async (meetingId: string, contactId: string | null) => {
       const updated = await api.linkMeeting(meetingId, contactId);
@@ -134,6 +164,33 @@ export default function App() {
     await api.deleteMeeting(meetingId);
     setMeetings((prev) => prev.filter((m) => m.id !== meetingId));
   }, []);
+
+  const handleReviewMeeting = useCallback(
+    async (
+      meetingId: string,
+      input: {
+        outcome: 'happened' | 'noshow';
+        newStufe?: 'K' | 'V' | 'T';
+        note?: string;
+      }
+    ) => {
+      const updated = await api.reviewMeeting(meetingId, input);
+      setMeetings((prev) => prev.map((m) => (m.id === meetingId ? updated : m)));
+      if (input.outcome === 'happened' && updated.contactId) {
+        const fresh = await api.listContacts();
+        setContacts(fresh);
+      }
+    },
+    []
+  );
+
+  const openCount = meetings.filter(
+    (m) =>
+      m.contactId &&
+      !m.reviewed &&
+      m.startTime &&
+      meetingState(m.startTime, m.duration) === 'past'
+  ).length;
 
   const handleCreateMeeting = useCallback(async (input: NewMeeting) => {
     const created = await api.createMeeting(input);
@@ -175,6 +232,7 @@ export default function App() {
         onSync={handleSync}
         syncing={syncing}
         status={status}
+        openCount={openCount}
       />
 
       {loading ? (
@@ -198,6 +256,8 @@ export default function App() {
           onLinkMeeting={handleLinkMeeting}
           onAddActivity={handleAddActivity}
           onDeleteActivity={handleDeleteActivity}
+          onUploadFile={handleUploadFile}
+          onDeleteFile={handleDeleteFile}
         />
       ) : tab === 'calendar' ? (
         <CalendarView
@@ -208,6 +268,12 @@ export default function App() {
           onSetSellers={handleSetSellers}
           onCreateMeeting={handleCreateMeeting}
           onDeleteMeeting={handleDeleteMeeting}
+        />
+      ) : tab === 'open' ? (
+        <OpenView
+          meetings={meetings}
+          contacts={contacts}
+          onReview={handleReviewMeeting}
         />
       ) : (
         <TasksView

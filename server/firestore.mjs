@@ -57,6 +57,14 @@ export function getDb() {
   return admin.firestore();
 }
 
+export function getBucket() {
+  ensureInit();
+  const name =
+    process.env.FIREBASE_STORAGE_BUCKET ||
+    `${process.env.FIREBASE_PROJECT_ID || 'busagentcrm'}.firebasestorage.app`;
+  return admin.storage().bucket(name);
+}
+
 export const FieldValue = admin.firestore.FieldValue;
 
 export const COLLECTIONS = {

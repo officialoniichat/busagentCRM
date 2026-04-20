@@ -1,4 +1,4 @@
-import type { Activity, ActivityType, Contact, Meeting, NewContact, NewMeeting, NewTask, Origin, SyncStatus, Task } from './types';
+import type { Activity, ActivityType, Contact, ContactFile, Meeting, NewContact, NewMeeting, NewTask, Origin, SyncStatus, Task } from './types';
 
 const base = '/api';
 
@@ -35,6 +35,25 @@ export function deleteContact(id: string): Promise<void> {
   return fetch(`${base}/contacts/${id}`, { method: 'DELETE' }).then((r) =>
     handle<void>(r)
   );
+}
+
+export function uploadContactFile(contactId: string, file: File): Promise<ContactFile> {
+  const fd = new FormData();
+  fd.append('file', file);
+  return fetch(`${base}/contacts/${contactId}/files`, {
+    method: 'POST',
+    body: fd
+  }).then((r) => handle<ContactFile>(r));
+}
+
+export function deleteContactFile(contactId: string, fileId: string): Promise<void> {
+  return fetch(`${base}/contacts/${contactId}/files/${fileId}`, {
+    method: 'DELETE'
+  }).then((r) => handle<void>(r));
+}
+
+export function contactFileDownloadUrl(contactId: string, fileId: string): string {
+  return `${base}/contacts/${contactId}/files/${fileId}/download`;
 }
 
 export function addActivity(
@@ -76,6 +95,21 @@ export function linkMeeting(id: string, contactId: string | null): Promise<Meeti
 
 export function deleteMeeting(id: string): Promise<void> {
   return fetch(`${base}/meetings/${id}`, { method: 'DELETE' }).then((r) => handle<void>(r));
+}
+
+export function reviewMeeting(
+  id: string,
+  input: {
+    outcome: 'happened' | 'noshow';
+    newStufe?: 'K' | 'V' | 'T';
+    note?: string;
+  }
+): Promise<Meeting> {
+  return fetch(`${base}/meetings/${id}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  }).then((r) => handle<Meeting>(r));
 }
 
 export function setMeetingSellers(id: string, assignedSellers: Origin[]): Promise<Meeting> {
