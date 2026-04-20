@@ -12,6 +12,7 @@ interface Props {
   onCreateContact: () => void;
   onSetSellers: (sellers: Origin[]) => Promise<void>;
   onDelete?: () => Promise<void>;
+  onReschedule?: (input: { startTime: string; duration: number; timezone?: string }) => Promise<void>;
 }
 
 export default function MeetingDrawer({
@@ -21,7 +22,8 @@ export default function MeetingDrawer({
   onLink,
   onCreateContact,
   onSetSellers,
-  onDelete
+  onDelete,
+  onReschedule
 }: Props) {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -277,6 +279,28 @@ export default function MeetingDrawer({
             </div>
           )}
 
+          {onReschedule && state !== 'past' && (
+            <section className="pt-4 border-t border-slate-200">
+              <RescheduleSection
+                currentStart={meeting.startTime}
+                currentDuration={meeting.duration}
+                currentTimezone={meeting.timezone}
+                onSubmit={async (input) => {
+                  setSaving(true);
+                  setErr(null);
+                  try {
+                    await onReschedule(input);
+                  } catch (e) {
+                    setErr(e instanceof Error ? e.message : String(e));
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+              />
+            </section>
+          )}
+
           {onDelete && (
             <section className="pt-4 border-t border-slate-200">
               <DeleteMeetingButton
@@ -299,6 +323,110 @@ export default function MeetingDrawer({
       </div>
     </div>,
     document.body
+  );
+}
+
+function RescheduleSection({
+  currentStart,
+  currentDuration,
+  currentTimezone,
+  onSubmit,
+  disabled
+}: {
+  currentStart: string | null;
+  currentDuration: number;
+  currentTimezone?: string;
+  onSubmit: (input: { startTime: string; duration: number; timezone?: string }) => Promise<void>;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [when, setWhen] = useState(() => toLocalInput(currentStart));
+  const [duration, setDuration] = useState(currentDuration || 60);
+
+  function toLocalInput(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-2 rounded-lg transition-colors disabled:opacity-50"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+          <path d="m14 15-3 3 3 3" />
+          <path d="M11 18h7" />
+        </svg>
+        Verschieben
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-slate-50 ring-1 ring-slate-200 rounded-lg p-3 space-y-3">
+      <div className="text-xs font-medium text-slate-700 uppercase tracking-wider">
+        Meeting verschieben
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px] gap-2">
+        <label className="block">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+            Neuer Zeitpunkt
+          </div>
+          <input
+            type="datetime-local"
+            value={when}
+            onChange={(e) => setWhen(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm bg-white"
+          />
+        </label>
+        <label className="block">
+          <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+            Dauer (min)
+          </div>
+          <input
+            type="number"
+            min={5}
+            step={5}
+            value={duration}
+            onChange={(e) => setDuration(Number(e.target.value))}
+            className="w-full px-3 py-2 rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm bg-white"
+          />
+        </label>
+      </div>
+      <p className="text-[11px] text-slate-500">
+        Das Meeting behält seine Zoom-ID und Join-Link — nur Zeit ändert sich. Teilnehmer können mit demselben Link joinen.
+      </p>
+      <div className="flex items-center gap-2 justify-end">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          disabled={disabled}
+          className="px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-200 rounded-lg disabled:opacity-50"
+        >
+          Abbrechen
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            if (!when || !Number.isFinite(duration) || duration < 1) return;
+            const startTime = when.length === 16 ? `${when}:00` : when;
+            await onSubmit({ startTime, duration: Math.round(duration), timezone: currentTimezone });
+            setOpen(false);
+          }}
+          disabled={disabled || !when}
+          className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 font-medium"
+        >
+          {disabled ? 'Speichere…' : 'Verschieben'}
+        </button>
+      </div>
+    </div>
   );
 }
 

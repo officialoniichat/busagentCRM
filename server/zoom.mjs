@@ -100,6 +100,23 @@ export async function listMeetings() {
   return [...byId.values()];
 }
 
+export async function updateMeeting(id, patch) {
+  const token = await getToken();
+  const res = await fetch(`${BASE}/meetings/${id}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(patch)
+  });
+  if (res.status === 204 || res.status === 200) return;
+  const text = await res.text().catch(() => '');
+  const err = new Error(`Zoom PATCH /meetings/${id} ${res.status}: ${text}`);
+  err.status = res.status;
+  throw err;
+}
+
 export async function deleteMeeting(id) {
   const token = await getToken();
   const res = await fetch(`${BASE}/meetings/${id}`, {

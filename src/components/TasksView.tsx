@@ -24,6 +24,10 @@ interface Props {
   onLinkMeeting: (meetingId: string, contactId: string | null) => Promise<void>;
   onSetSellers: (meetingId: string, sellers: Origin[]) => Promise<void>;
   onDeleteMeeting: (meetingId: string) => Promise<void>;
+  onRescheduleMeeting: (
+    meetingId: string,
+    input: { startTime: string; duration: number; timezone?: string }
+  ) => Promise<void>;
   onCreateTask: (input: NewTask) => Promise<Task>;
   onUpdateTask: (id: string, patch: Partial<NewTask>) => Promise<Task>;
   onDeleteTask: (id: string) => Promise<void>;
@@ -38,6 +42,7 @@ export default function TasksView({
   onLinkMeeting,
   onSetSellers,
   onDeleteMeeting,
+  onRescheduleMeeting,
   onCreateTask,
   onUpdateTask,
   onDeleteTask
@@ -326,6 +331,9 @@ export default function TasksView({
           }}
           onSetSellers={async (sellers) => {
             await onSetSellers(selectedMeeting.id, sellers);
+          }}
+          onReschedule={async (input) => {
+            await onRescheduleMeeting(selectedMeeting.id, input);
           }}
         />
       )}

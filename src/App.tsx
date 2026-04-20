@@ -163,6 +163,17 @@ export default function App() {
     setMeetings((prev) => prev.filter((m) => m.id !== meetingId));
   }, []);
 
+  const handleRescheduleMeeting = useCallback(
+    async (
+      meetingId: string,
+      input: { startTime: string; duration: number; timezone?: string }
+    ) => {
+      const updated = await api.rescheduleMeeting(meetingId, input);
+      setMeetings((prev) => prev.map((m) => (m.id === meetingId ? updated : m)));
+    },
+    []
+  );
+
   const handleReviewMeeting = useCallback(
     async (
       meetingId: string,
@@ -268,6 +279,7 @@ export default function App() {
           onSetSellers={handleSetSellers}
           onCreateMeeting={handleCreateMeeting}
           onDeleteMeeting={handleDeleteMeeting}
+          onRescheduleMeeting={handleRescheduleMeeting}
         />
       ) : tab === 'open' ? (
         <OpenView
@@ -285,6 +297,7 @@ export default function App() {
           onLinkMeeting={handleLinkMeeting}
           onSetSellers={handleSetSellers}
           onDeleteMeeting={handleDeleteMeeting}
+          onRescheduleMeeting={handleRescheduleMeeting}
           onCreateTask={handleCreateTask}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}

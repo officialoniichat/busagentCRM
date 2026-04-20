@@ -97,6 +97,17 @@ export function deleteMeeting(id: string): Promise<void> {
   return fetch(`${base}/meetings/${id}`, { method: 'DELETE' }).then((r) => handle<void>(r));
 }
 
+export function rescheduleMeeting(
+  id: string,
+  input: { startTime: string; duration: number; timezone?: string }
+): Promise<Meeting> {
+  return fetch(`${base}/meetings/${id}/reschedule`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  }).then((r) => handle<Meeting>(r));
+}
+
 export function reviewMeeting(
   id: string,
   input: {

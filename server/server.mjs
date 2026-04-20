@@ -410,6 +410,49 @@ app.post('/api/meetings', async (req, res) => {
   res.status(201).json(stored);
 });
 
+app.post('/api/meetings/:id/reschedule', async (req, res) => {
+  if (!zoom.hasCredentials()) {
+    return res.status(503).json({ error: 'Zoom nicht konfiguriert' });
+  }
+  try {
+    const ref = cMeetings.doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Not found' });
+
+    const startTime = typeof req.body?.startTime === 'string' ? req.body.startTime.trim() : '';
+    const duration = Number(req.body?.duration);
+    if (!startTime) return res.status(400).json({ error: 'startTime required' });
+    if (!Number.isFinite(duration) || duration < 1) {
+      return res.status(400).json({ error: 'duration (minutes) required' });
+    }
+    const timezone = typeof req.body?.timezone === 'string' && req.body.timezone
+      ? req.body.timezone
+      : snap.data().timezone || 'Europe/Berlin';
+
+    try {
+      await zoom.updateMeeting(req.params.id, {
+        start_time: startTime,
+        duration: Math.round(duration),
+        timezone
+      });
+    } catch (err) {
+      return res.status(502).json({ error: err.message || String(err) });
+    }
+
+    await ref.update({
+      startTime,
+      duration: Math.round(duration),
+      timezone,
+      syncedAt: Date.now()
+    });
+
+    const next = (await ref.get()).data();
+    res.json(next);
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
 app.post('/api/meetings/:id/review', async (req, res) => {
   try {
     const ref = cMeetings.doc(req.params.id);
