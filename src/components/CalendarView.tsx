@@ -193,7 +193,7 @@ export default function CalendarView({
           height="auto"
           headerToolbar={
             isMobile
-              ? { left: 'prev,next', center: 'title', right: 'listMonth,dayGridMonth' }
+              ? { left: 'prev,next', center: 'title', right: 'today' }
               : {
                   left: 'prev,next today',
                   center: 'title',
