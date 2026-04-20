@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Contact, Meeting, NewContact, NewMeeting, Origin } from '../types';
 import { MEETING_ORIGINS, ORIGIN_META } from '../types';
@@ -64,6 +64,7 @@ export default function MeetingCreateDrawer({
   );
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const submittingRef = useRef(false);
   const [conflictAcknowledged, setConflictAcknowledged] = useState(false);
 
   useEffect(() => {
@@ -132,6 +133,7 @@ export default function MeetingCreateDrawer({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     setErr(null);
     if (!topic.trim()) {
       setErr('Thema ist Pflicht');
@@ -149,6 +151,7 @@ export default function MeetingCreateDrawer({
       setConflictAcknowledged(true);
       return;
     }
+    submittingRef.current = true;
     setSaving(true);
     try {
       const startTime = when.length === 16 ? `${when}:00` : when;
@@ -165,6 +168,7 @@ export default function MeetingCreateDrawer({
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : String(e2));
     } finally {
+      submittingRef.current = false;
       setSaving(false);
     }
   }

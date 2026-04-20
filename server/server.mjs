@@ -329,6 +329,8 @@ app.get('/api/meetings', async (_req, res) => {
   }
 });
 
+const pendingMeetingCreates = new Map(); // key -> timestamp
+
 app.post('/api/meetings', async (req, res) => {
   if (!zoom.hasCredentials()) {
     return res.status(503).json({ error: 'Zoom nicht konfiguriert' });
@@ -338,6 +340,20 @@ app.post('/api/meetings', async (req, res) => {
   const startTime = typeof body.startTime === 'string' ? body.startTime.trim() : '';
   const duration = Number(body.duration);
   if (!topic) return res.status(400).json({ error: 'topic required' });
+
+  // Dedupe: same topic+start within last 10s → reject
+  const dedupeKey = `${topic}|${startTime}`;
+  const now = Date.now();
+  // GC old entries
+  for (const [k, ts] of pendingMeetingCreates) {
+    if (now - ts > 10_000) pendingMeetingCreates.delete(k);
+  }
+  if (pendingMeetingCreates.has(dedupeKey)) {
+    return res
+      .status(429)
+      .json({ error: 'Doppel-Create erkannt (gleiches Topic + Zeit). Bitte kurz warten.' });
+  }
+  pendingMeetingCreates.set(dedupeKey, now);
   if (!startTime) return res.status(400).json({ error: 'startTime required' });
   if (!Number.isFinite(duration) || duration < 1) {
     return res.status(400).json({ error: 'duration (minutes) required' });
@@ -385,6 +401,7 @@ app.post('/api/meetings', async (req, res) => {
   try {
     created = await zoom.createMeeting(payload);
   } catch (err) {
+    pendingMeetingCreates.delete(dedupeKey);
     return res.status(502).json({ error: err.message || String(err) });
   }
 
@@ -410,6 +427,7 @@ app.post('/api/meetings', async (req, res) => {
 
   await cMeetings.doc(id).set(meeting, { merge: true });
   const stored = (await cMeetings.doc(id).get()).data();
+  pendingMeetingCreates.delete(dedupeKey);
   res.status(201).json(stored);
 });
 
