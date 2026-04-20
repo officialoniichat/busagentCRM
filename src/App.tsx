@@ -236,11 +236,11 @@ export default function App() {
       />
 
       {loading ? (
-        <div className="max-w-7xl mx-auto px-6 py-16 text-center text-slate-500">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 text-center text-slate-500">
           Lädt…
         </div>
       ) : error ? (
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
           <div className="bg-rose-50 ring-1 ring-rose-200 rounded-xl p-6 text-rose-700">
             <strong>Fehler:</strong> {error}
           </div>

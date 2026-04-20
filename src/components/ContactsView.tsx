@@ -111,7 +111,7 @@ export default function ContactsView({
   const activitiesForDrawer = liveDrawerContact?.activities || [];
 
   return (
-    <main className="max-w-screen-2xl mx-auto px-6 py-8 space-y-6">
+    <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 sm:space-y-6">
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Gesamt" value={counts.total} />
         <StatCard label="Kalt" value={counts.K} accent="slate" />
@@ -320,13 +320,13 @@ function ContactTable({
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="text-left font-medium px-6 py-3">Kontakt</th>
-              <th className="text-left font-medium px-6 py-3">Flotte</th>
-              <th className="text-left font-medium px-6 py-3">V.Arten</th>
-              <th className="text-left font-medium px-6 py-3">Termin</th>
-              <th className="text-left font-medium px-6 py-3">Meetings</th>
-              <th className="text-left font-medium px-6 py-3">Stufe</th>
-              <th className="text-left font-medium px-6 py-3">Origin</th>
+              <th className="text-left font-medium px-4 sm:px-6 py-3">Kontakt</th>
+              <th className="text-left font-medium px-4 sm:px-6 py-3 hidden lg:table-cell">Flotte</th>
+              <th className="text-left font-medium px-4 sm:px-6 py-3 hidden xl:table-cell">V.Arten</th>
+              <th className="text-left font-medium px-4 sm:px-6 py-3 hidden md:table-cell">Termin</th>
+              <th className="text-left font-medium px-4 sm:px-6 py-3 hidden sm:table-cell">Meetings</th>
+              <th className="text-left font-medium px-4 sm:px-6 py-3">Stufe</th>
+              <th className="text-left font-medium px-4 sm:px-6 py-3 hidden md:table-cell">Origin</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -345,20 +345,52 @@ function ContactTable({
                   onClick={() => onRowClick(c)}
                   className={rowCls}
                 >
-                  <td className="px-6 py-4 min-w-[220px]">
-                    <div className="font-medium text-slate-900">
-                      {c.name || <span className="text-slate-400">—</span>}
+                  <td className="px-4 sm:px-6 py-4 sm:min-w-[220px]">
+                    <div className="flex items-start gap-2 sm:hidden">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-slate-900 truncate">
+                          {c.name || <span className="text-slate-400">—</span>}
+                        </div>
+                        {c.unternehmen && (
+                          <div className="text-slate-500 text-xs mt-0.5 truncate">{c.unternehmen}</div>
+                        )}
+                        <div className="mt-1 text-xs text-slate-400 flex flex-wrap gap-x-2">
+                          {c.telefon && <span className="whitespace-nowrap">{c.telefon}</span>}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 flex-wrap">
+                          {stats.running > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-50 ring-1 ring-emerald-300 rounded-full px-1.5 py-0.5">
+                              <PulseDot className="w-1.5 h-1.5" />
+                              Live
+                            </span>
+                          )}
+                          {stats.total > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-600 bg-slate-50 ring-1 ring-slate-200 rounded-full px-1.5 py-0.5">
+                              {stats.total}
+                              {stats.upcoming > 0 && (
+                                <span className="text-indigo-500">· {stats.upcoming}↑</span>
+                              )}
+                            </span>
+                          )}
+                          <OriginBadge origin={c.origin} />
+                        </div>
+                      </div>
                     </div>
-                    {c.unternehmen && (
-                      <div className="text-slate-500 text-xs mt-0.5">{c.unternehmen}</div>
-                    )}
-                    <div className="mt-1 text-xs text-slate-400 flex flex-wrap gap-x-2">
-                      {c.telefon && <span className="whitespace-nowrap">{c.telefon}</span>}
-                      {c.telefon && c.email && <span>·</span>}
-                      {c.email && <span className="truncate">{c.email}</span>}
+                    <div className="hidden sm:block">
+                      <div className="font-medium text-slate-900">
+                        {c.name || <span className="text-slate-400">—</span>}
+                      </div>
+                      {c.unternehmen && (
+                        <div className="text-slate-500 text-xs mt-0.5">{c.unternehmen}</div>
+                      )}
+                      <div className="mt-1 text-xs text-slate-400 flex flex-wrap gap-x-2">
+                        {c.telefon && <span className="whitespace-nowrap">{c.telefon}</span>}
+                        {c.telefon && c.email && <span>·</span>}
+                        {c.email && <span className="truncate">{c.email}</span>}
+                      </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap hidden lg:table-cell">
                     {c.fahrer || c.fahrzeuge ? (
                       <div className="text-xs space-y-0.5 text-slate-600">
                         {c.fahrer && (
@@ -376,15 +408,15 @@ function ContactTable({
                       <span className="text-slate-300">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-slate-600 max-w-[200px]">
+                  <td className="px-4 sm:px-6 py-4 text-slate-600 max-w-[200px] hidden xl:table-cell">
                     <div className="line-clamp-2">
                       {c.verkehrsarten || <span className="text-slate-300">—</span>}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
+                  <td className="px-4 sm:px-6 py-4 text-slate-600 whitespace-nowrap hidden md:table-cell">
                     {c.termin || <span className="text-slate-300">—</span>}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 sm:px-6 py-4 whitespace-nowrap hidden sm:table-cell">
                     {stats.total > 0 ? (
                       <div className="flex items-center gap-1.5">
                         {stats.running > 0 && (
@@ -419,10 +451,10 @@ function ContactTable({
                       <span className="text-slate-300 text-xs">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4">
                     <StufeBadge stufe={c.stufe} highlight={vorschauHighlight(c)} />
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 sm:px-6 py-4 hidden md:table-cell">
                     <OriginBadge origin={c.origin} />
                   </td>
                 </tr>

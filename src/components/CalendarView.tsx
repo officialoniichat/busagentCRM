@@ -55,6 +55,9 @@ export default function CalendarView({
     start: Date | null;
     end: Date | null;
   } | null>(null);
+  const [isMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  );
 
   const contactById = useMemo(() => {
     const m = new Map<string, Contact>();
@@ -149,7 +152,7 @@ export default function CalendarView({
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 sm:space-y-6">
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Insgesamt" value={meetings.length} />
         <StatCard label="Läuft gerade" value={runningCount} tone="live" />
@@ -181,18 +184,22 @@ export default function CalendarView({
         </button>
       </section>
 
-      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-2 sm:p-4">
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          initialView="dayGridMonth"
+          initialView={isMobile ? 'listMonth' : 'dayGridMonth'}
           locale="de"
           firstDay={1}
           height="auto"
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,listMonth'
-          }}
+          headerToolbar={
+            isMobile
+              ? { left: 'prev,next', center: 'title', right: 'listMonth,dayGridMonth' }
+              : {
+                  left: 'prev,next today',
+                  center: 'title',
+                  right: 'dayGridMonth,timeGridWeek,listMonth'
+                }
+          }
           buttonText={{
             today: 'Heute',
             month: 'Monat',

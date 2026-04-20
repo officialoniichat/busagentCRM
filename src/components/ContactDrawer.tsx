@@ -164,7 +164,7 @@ export default function ContactDrawer({
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Telefon">
               <input
                 value={form.telefon}
@@ -216,7 +216,7 @@ export default function ContactDrawer({
             </div>
           </Field>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Fahrer">
               <input
                 value={form.fahrer}
@@ -281,7 +281,7 @@ export default function ContactDrawer({
             />
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Stufe">
               <div className="flex gap-2 flex-wrap">
                 {(['K', 'V', 'T'] as Stufe[]).map((s) => (

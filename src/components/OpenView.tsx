@@ -36,7 +36,7 @@ export default function OpenView({ meetings, contacts, onReview }: Props) {
   }, [meetings]);
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-8 space-y-4">
+    <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
       <header>
         <h2 className="text-xl font-semibold text-slate-900">Offene Nachbereitung</h2>
         <p className="text-sm text-slate-500 mt-1">

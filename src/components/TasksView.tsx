@@ -48,6 +48,9 @@ export default function TasksView({
   });
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
   const [taskDrawer, setTaskDrawer] = useState<TaskDrawerState>({ mode: 'closed' });
+  const [isMobile] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+  );
 
   function pickWho(o: Origin) {
     window.localStorage.setItem(WHO_KEY, o);
@@ -113,7 +116,7 @@ export default function TasksView({
 
   if (!whoAmI) {
     return (
-      <main className="max-w-3xl mx-auto px-6 py-16">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
         <div className="bg-white ring-1 ring-slate-200 rounded-2xl p-8 text-center shadow-sm">
           <h2 className="text-2xl font-semibold text-slate-900 mb-2">Wer bist du?</h2>
           <p className="text-sm text-slate-500 mb-8">
@@ -205,8 +208,8 @@ export default function TasksView({
   }
 
   return (
-    <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-5 flex items-center gap-4">
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4 sm:space-y-6">
+      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-4 sm:p-5 flex items-center gap-3 sm:gap-4 flex-wrap">
         <div
           className={
             'w-12 h-12 rounded-xl ring-1 grid place-items-center font-semibold ' +
@@ -245,18 +248,22 @@ export default function TasksView({
         <StatCard label="Eigene Tasks" value={myTasks.length} tone="amber" />
       </section>
 
-      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-4">
+      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-2 sm:p-4">
         <FullCalendar
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          initialView="timeGridWeek"
+          initialView={isMobile ? 'timeGridDay' : 'timeGridWeek'}
           locale="de"
           firstDay={1}
           height="auto"
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'timeGridDay,timeGridWeek,dayGridMonth,listWeek'
-          }}
+          headerToolbar={
+            isMobile
+              ? { left: 'prev,next', center: 'title', right: 'timeGridDay,listWeek' }
+              : {
+                  left: 'prev,next today',
+                  center: 'title',
+                  right: 'timeGridDay,timeGridWeek,dayGridMonth,listWeek'
+                }
+          }
           buttonText={{
             today: 'Heute',
             month: 'Monat',
