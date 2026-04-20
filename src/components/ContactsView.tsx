@@ -1,19 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ActivityType, Contact, Meeting, NewContact, Origin, Stufe, VorschauHighlight } from '../types';
 import { ORIGIN_META, STUFE_META, meetingState, vorschauHighlight } from '../types';
 import ContactDrawer from './ContactDrawer';
 import { PulseDot } from './Icons';
-
-type DrawerState =
-  | { mode: 'closed' }
-  | { mode: 'new' }
-  | { mode: 'edit'; contact: Contact };
+import type { Route } from '../routing';
 
 interface Props {
+  route: Route;
+  setRoute: (next: Route | ((prev: Route) => Route)) => void;
   contacts: Contact[];
   meetings: Meeting[];
-  newContactOpen: boolean;
-  onNewContactClose: () => void;
   onSave: (input: NewContact, id?: string) => Promise<unknown>;
   onDelete: (id: string) => Promise<void>;
   onLinkMeeting: (meetingId: string, contactId: string | null) => Promise<void>;
@@ -27,10 +23,10 @@ interface Props {
 }
 
 export default function ContactsView({
+  route,
+  setRoute,
   contacts,
   meetings,
-  newContactOpen,
-  onNewContactClose,
   onSave,
   onDelete,
   onLinkMeeting,
@@ -42,11 +38,6 @@ export default function ContactsView({
   const [search, setSearch] = useState('');
   const [stufeFilter, setStufeFilter] = useState<Stufe | null>(null);
   const [originFilter, setOriginFilter] = useState<Origin | null>(null);
-  const [drawer, setDrawer] = useState<DrawerState>({ mode: 'closed' });
-
-  useEffect(() => {
-    if (newContactOpen) setDrawer({ mode: 'new' });
-  }, [newContactOpen]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -85,9 +76,11 @@ export default function ContactsView({
     return map;
   }, [meetings]);
 
+  const showNewContact = !!route.newContact;
+  const drawerContactId = route.contactId;
+
   function closeDrawer() {
-    setDrawer({ mode: 'closed' });
-    onNewContactClose();
+    setRoute({ tab: 'contacts' });
   }
 
   async function handleSave(input: NewContact, id?: string) {
@@ -101,10 +94,10 @@ export default function ContactsView({
   }
 
   const hasFilters = Boolean(search) || stufeFilter !== null || originFilter !== null;
-  const liveDrawerContact =
-    drawer.mode === 'edit'
-      ? contacts.find((c) => c.id === drawer.contact.id) || drawer.contact
-      : null;
+  const liveDrawerContact = drawerContactId
+    ? contacts.find((c) => c.id === drawerContactId) || null
+    : null;
+  const drawerOpen = showNewContact || !!liveDrawerContact;
   const meetingsForDrawer = liveDrawerContact
     ? meetings.filter((m) => m.contactId === liveDrawerContact.id)
     : [];
@@ -179,14 +172,14 @@ export default function ContactsView({
         contacts={filtered}
         totalCount={contacts.length}
         meetingStatsByContact={meetingStatsByContact}
-        onRowClick={(c) => setDrawer({ mode: 'edit', contact: c })}
+        onRowClick={(c) => setRoute({ tab: 'contacts', contactId: c.id })}
       />
 
       <footer className="text-center text-xs text-slate-400 pt-4">
         {contacts.length} Kontakte · {meetings.length} Zoom-Meetings synchronisiert
       </footer>
 
-      {drawer.mode !== 'closed' && (
+      {drawerOpen && (
         <ContactDrawer
           initial={liveDrawerContact}
           meetings={meetingsForDrawer}

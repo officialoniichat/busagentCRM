@@ -2,17 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Contact, Meeting, NewContact, NewMeeting, NewTask, SyncStatus, Task } from './types';
 import * as api from './api';
 import Header from './components/Header';
-import type { TabName } from './components/Header';
 import ContactsView from './components/ContactsView';
 import CalendarView from './components/CalendarView';
 import TasksView from './components/TasksView';
 import OpenView from './components/OpenView';
 import { meetingState } from './types';
-
-type Tab = TabName;
+import { useRoute } from './routing';
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>('contacts');
+  const [route, setRoute] = useRoute();
+  const tab = route.tab;
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -20,7 +19,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [newContactOpen, setNewContactOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -227,8 +225,8 @@ export default function App() {
     <div className="min-h-screen">
       <Header
         tab={tab}
-        onTabChange={setTab}
-        onAddContact={() => setNewContactOpen(true)}
+        onTabChange={(t) => setRoute({ tab: t })}
+        onAddContact={() => setRoute({ tab: 'contacts', newContact: true })}
         onSync={handleSync}
         syncing={syncing}
         status={status}
@@ -247,10 +245,10 @@ export default function App() {
         </div>
       ) : tab === 'contacts' ? (
         <ContactsView
+          route={route}
+          setRoute={setRoute}
           contacts={contacts}
           meetings={meetings}
-          newContactOpen={newContactOpen}
-          onNewContactClose={() => setNewContactOpen(false)}
           onSave={handleSaveContact}
           onDelete={handleDeleteContact}
           onLinkMeeting={handleLinkMeeting}
@@ -261,6 +259,8 @@ export default function App() {
         />
       ) : tab === 'calendar' ? (
         <CalendarView
+          route={route}
+          setRoute={setRoute}
           meetings={meetings}
           contacts={contacts}
           onLinkMeeting={handleLinkMeeting}
@@ -277,6 +277,8 @@ export default function App() {
         />
       ) : (
         <TasksView
+          route={route}
+          setRoute={setRoute}
           meetings={meetings}
           contacts={contacts}
           tasks={tasks}

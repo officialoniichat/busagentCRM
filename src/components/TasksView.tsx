@@ -7,6 +7,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import type { DateSelectArg, EventClickArg, EventContentArg } from '@fullcalendar/core';
 import type { Contact, Meeting, NewTask, Origin, Task } from '../types';
 import { ORIGIN_META, meetingState, vorschauHighlight } from '../types';
+import type { Route } from '../routing';
 import MeetingDrawer from './MeetingDrawer';
 import TaskDrawer from './TaskDrawer';
 import { PlusIcon, PulseDot } from './Icons';
@@ -15,6 +16,8 @@ import './calendar-theme.css';
 const WHO_KEY = 'crm.whoAmI';
 
 interface Props {
+  route: Route;
+  setRoute: (next: Route | ((prev: Route) => Route)) => void;
   meetings: Meeting[];
   contacts: Contact[];
   tasks: Task[];
@@ -26,12 +29,9 @@ interface Props {
   onDeleteTask: (id: string) => Promise<void>;
 }
 
-type TaskDrawerState =
-  | { mode: 'closed' }
-  | { mode: 'new'; defaultDate?: string }
-  | { mode: 'edit'; task: Task };
-
 export default function TasksView({
+  route,
+  setRoute,
   meetings,
   contacts,
   tasks,
@@ -46,11 +46,36 @@ export default function TasksView({
     const saved = typeof window !== 'undefined' ? window.localStorage.getItem(WHO_KEY) : null;
     return saved === 'F' || saved === 'T' ? saved : null;
   });
-  const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
-  const [taskDrawer, setTaskDrawer] = useState<TaskDrawerState>({ mode: 'closed' });
+  const [taskDraftDate, setTaskDraftDate] = useState<string | undefined>();
   const [isMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
   );
+
+  const selectedMeeting = route.meetingId
+    ? meetings.find((m) => m.id === route.meetingId) || null
+    : null;
+  const showNewTask = !!route.newTask;
+  const editTask = route.taskId ? tasks.find((t) => t.id === route.taskId) || null : null;
+  const taskDrawerOpen = showNewTask || !!editTask;
+
+  function openMeeting(id: string | null) {
+    if (id) setRoute({ tab: 'tasks', meetingId: id });
+    else setRoute({ tab: 'tasks' });
+  }
+
+  function openNewTask(defaultDate?: string) {
+    setTaskDraftDate(defaultDate);
+    setRoute({ tab: 'tasks', newTask: true });
+  }
+
+  function openEditTask(id: string) {
+    setRoute({ tab: 'tasks', taskId: id });
+  }
+
+  function closeTaskDrawer() {
+    setTaskDraftDate(undefined);
+    setRoute({ tab: 'tasks' });
+  }
 
   function pickWho(o: Origin) {
     window.localStorage.setItem(WHO_KEY, o);
@@ -156,12 +181,11 @@ export default function TasksView({
   function handleEventClick(arg: EventClickArg) {
     const { kind } = arg.event.extendedProps as { kind: 'meeting' | 'task' };
     if (kind === 'meeting') {
-      setSelectedMeeting((arg.event.extendedProps as { meeting: Meeting }).meeting);
+      const m = (arg.event.extendedProps as { meeting: Meeting }).meeting;
+      openMeeting(m.id);
     } else {
-      setTaskDrawer({
-        mode: 'edit',
-        task: (arg.event.extendedProps as { task: Task }).task
-      });
+      const t = (arg.event.extendedProps as { task: Task }).task;
+      openEditTask(t.id);
     }
   }
 
@@ -169,7 +193,7 @@ export default function TasksView({
     const pad = (n: number) => String(n).padStart(2, '0');
     const d = arg.start;
     const dateKey = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    setTaskDrawer({ mode: 'new', defaultDate: dateKey });
+    openNewTask(dateKey);
   }
 
   function renderEventContent(arg: EventContentArg) {
@@ -233,7 +257,7 @@ export default function TasksView({
           Wechseln
         </button>
         <button
-          onClick={() => setTaskDrawer({ mode: 'new' })}
+          onClick={() => openNewTask()}
           className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
         >
           <PlusIcon className="w-4 h-4" />
@@ -291,39 +315,37 @@ export default function TasksView({
         <MeetingDrawer
           meeting={selectedMeeting}
           contacts={contacts}
-          onClose={() => setSelectedMeeting(null)}
+          onClose={() => openMeeting(null)}
           onLink={async (cid) => {
             await onLinkMeeting(selectedMeeting.id, cid);
-            setSelectedMeeting({ ...selectedMeeting, contactId: cid ?? undefined });
           }}
           onCreateContact={() => {}}
           onDelete={async () => {
             await onDeleteMeeting(selectedMeeting.id);
-            setSelectedMeeting(null);
+            openMeeting(null);
           }}
           onSetSellers={async (sellers) => {
             await onSetSellers(selectedMeeting.id, sellers);
-            setSelectedMeeting({ ...selectedMeeting, assignedSellers: sellers });
           }}
         />
       )}
 
-      {taskDrawer.mode !== 'closed' && (
+      {taskDrawerOpen && (
         <TaskDrawer
           owner={whoAmI}
-          initial={taskDrawer.mode === 'edit' ? taskDrawer.task : null}
-          defaultDate={taskDrawer.mode === 'new' ? taskDrawer.defaultDate : undefined}
-          onClose={() => setTaskDrawer({ mode: 'closed' })}
+          initial={editTask}
+          defaultDate={editTask ? undefined : taskDraftDate}
+          onClose={closeTaskDrawer}
           onSave={async (input, id) => {
             if (id) await onUpdateTask(id, input);
             else await onCreateTask(input);
-            setTaskDrawer({ mode: 'closed' });
+            closeTaskDrawer();
           }}
           onDelete={
-            taskDrawer.mode === 'edit'
+            editTask
               ? async (id) => {
                   await onDeleteTask(id);
-                  setTaskDrawer({ mode: 'closed' });
+                  closeTaskDrawer();
                 }
               : undefined
           }

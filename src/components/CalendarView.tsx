@@ -8,6 +8,7 @@ import type { DateClickArg } from '@fullcalendar/interaction';
 import type { DateSelectArg, EventClickArg, EventContentArg } from '@fullcalendar/core';
 import type { Contact, Meeting, NewContact, NewMeeting } from '../types';
 import { meetingState, vorschauHighlight } from '../types';
+import type { Route } from '../routing';
 import MeetingDrawer from './MeetingDrawer';
 import ContactDrawer from './ContactDrawer';
 import MeetingCreateDrawer from './MeetingCreateDrawer';
@@ -15,6 +16,8 @@ import { PlusIcon, PulseDot } from './Icons';
 import './calendar-theme.css';
 
 interface Props {
+  route: Route;
+  setRoute: (next: Route | ((prev: Route) => Route)) => void;
   meetings: Meeting[];
   contacts: Contact[];
   onLinkMeeting: (meetingId: string, contactId: string | null) => Promise<void>;
@@ -40,6 +43,8 @@ function extractContactHintFromTopic(topic: string): Partial<NewContact> {
 }
 
 export default function CalendarView({
+  route,
+  setRoute,
   meetings,
   contacts,
   onLinkMeeting,
@@ -48,16 +53,21 @@ export default function CalendarView({
   onCreateMeeting,
   onDeleteMeeting
 }: Props) {
-  const [selected, setSelected] = useState<Meeting | null>(null);
   const [creatingForMeeting, setCreatingForMeeting] = useState<Meeting | null>(null);
   const [filterLinked, setFilterLinked] = useState<'all' | 'linked' | 'unlinked'>('all');
-  const [createDraft, setCreateDraft] = useState<{
+  const [createDraftDate, setCreateDraftDate] = useState<{
     start: Date | null;
     end: Date | null;
   } | null>(null);
   const [isMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
   );
+
+  const selected = route.meetingId
+    ? meetings.find((m) => m.id === route.meetingId) || null
+    : null;
+  const showCreate = !!route.newMeeting;
+  const createDraft = showCreate ? createDraftDate || { start: null, end: null } : null;
 
   const contactById = useMemo(() => {
     const m = new Map<string, Contact>();
@@ -112,19 +122,34 @@ export default function CalendarView({
   const unlinkedCount = meetings.filter((m) => !m.contactId && m.startTime).length;
   const linkedCount = meetings.filter((m) => m.contactId && m.startTime).length;
 
+  function openMeeting(id: string | null) {
+    if (id) setRoute({ tab: 'calendar', meetingId: id });
+    else setRoute({ tab: 'calendar' });
+  }
+
+  function openCreate(start: Date | null, end: Date | null) {
+    setCreateDraftDate(start ? { start, end } : null);
+    setRoute({ tab: 'calendar', newMeeting: true });
+  }
+
+  function closeCreate() {
+    setCreateDraftDate(null);
+    setRoute({ tab: 'calendar' });
+  }
+
   function onEventClick(arg: EventClickArg) {
     const m = arg.event.extendedProps.meeting as Meeting;
-    setSelected(m);
+    openMeeting(m.id);
   }
 
   function onDateClick(arg: DateClickArg) {
     const start = new Date(arg.date);
     if (arg.allDay) start.setHours(10, 0, 0, 0);
-    setCreateDraft({ start, end: null });
+    openCreate(start, null);
   }
 
   function onSelect(arg: DateSelectArg) {
-    setCreateDraft({ start: arg.start, end: arg.end });
+    openCreate(arg.start, arg.end);
   }
 
   function renderEventContent(arg: EventContentArg) {
@@ -171,12 +196,14 @@ export default function CalendarView({
           ]}
           onChange={setFilterLinked}
         />
-        <span className="text-xs text-slate-400 ml-auto">
+        <span className="hidden sm:inline text-xs text-slate-400 ml-auto">
           Tag klicken · Zeitraum ziehen · oder
         </span>
+        <span className="sm:hidden ml-auto" />
+
         <button
           type="button"
-          onClick={() => setCreateDraft({ start: null, end: null })}
+          onClick={() => openCreate(null, null)}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm"
         >
           <PlusIcon className="w-3.5 h-3.5" />
@@ -184,64 +211,65 @@ export default function CalendarView({
         </button>
       </section>
 
-      <section className="bg-white rounded-xl ring-1 ring-slate-200 p-2 sm:p-4">
-        <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          initialView={isMobile ? 'listMonth' : 'dayGridMonth'}
-          locale="de"
-          firstDay={1}
-          height="auto"
-          headerToolbar={
-            isMobile
-              ? { left: 'prev,next', center: 'title', right: 'today' }
-              : {
-                  left: 'prev,next today',
-                  center: 'title',
-                  right: 'dayGridMonth,timeGridWeek,listMonth'
-                }
-          }
-          buttonText={{
-            today: 'Heute',
-            month: 'Monat',
-            week: 'Woche',
-            day: 'Tag',
-            list: 'Liste'
-          }}
-          events={events}
-          eventClick={onEventClick}
-          eventContent={renderEventContent}
-          eventDisplay="block"
-          displayEventTime={false}
-          dayMaxEvents={4}
-          nowIndicator
-          weekNumbers={false}
-          allDaySlot={false}
-          slotMinTime="07:00:00"
-          slotMaxTime="21:00:00"
-          dateClick={onDateClick}
-          selectable
-          select={onSelect}
+      {isMobile ? (
+        <MobileMeetingList
+          meetings={visibleMeetings}
+          contactById={contactById}
+          onSelect={(m) => openMeeting(m.id)}
         />
-      </section>
+      ) : (
+        <section className="bg-white rounded-xl ring-1 ring-slate-200 p-2 sm:p-4">
+          <FullCalendar
+            plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
+            initialView="dayGridMonth"
+            locale="de"
+            firstDay={1}
+            height="auto"
+            headerToolbar={{
+              left: 'prev,next today',
+              center: 'title',
+              right: 'dayGridMonth,timeGridWeek,listMonth'
+            }}
+            buttonText={{
+              today: 'Heute',
+              month: 'Monat',
+              week: 'Woche',
+              day: 'Tag',
+              list: 'Liste'
+            }}
+            events={events}
+            eventClick={onEventClick}
+            eventContent={renderEventContent}
+            eventDisplay="block"
+            displayEventTime={false}
+            dayMaxEvents={4}
+            nowIndicator
+            weekNumbers={false}
+            allDaySlot={false}
+            slotMinTime="07:00:00"
+            slotMaxTime="21:00:00"
+            dateClick={onDateClick}
+            selectable
+            select={onSelect}
+          />
+        </section>
+      )}
 
       {selected && (
         <MeetingDrawer
           meeting={selected}
           contacts={contacts}
-          onClose={() => setSelected(null)}
+          onClose={() => openMeeting(null)}
           onLink={async (cid) => {
             await onLinkMeeting(selected.id, cid);
-            const updated = meetings.find((m) => m.id === selected.id);
-            setSelected(updated ? { ...updated, contactId: cid ?? undefined } : null);
           }}
           onCreateContact={() => setCreatingForMeeting(selected)}
           onDelete={async () => {
             await onDeleteMeeting(selected.id);
-            setSelected(null);
+            openMeeting(null);
           }}
           onSetSellers={async (sellers) => {
             await onSetSellers(selected.id, sellers);
-            setSelected({ ...selected, assignedSellers: sellers });
           }}
         />
       )}
@@ -255,7 +283,6 @@ export default function CalendarView({
           onSave={async (input) => {
             const created = await onCreateContact(input);
             await onLinkMeeting(creatingForMeeting.id, created.id);
-            setSelected({ ...creatingForMeeting, contactId: created.id, matchMode: 'manual' });
             setCreatingForMeeting(null);
           }}
           onDelete={async () => {}}
@@ -268,7 +295,7 @@ export default function CalendarView({
           meetings={meetings}
           initialStart={createDraft.start}
           initialEnd={createDraft.end}
-          onClose={() => setCreateDraft(null)}
+          onClose={closeCreate}
           onCreate={async (input) => {
             await onCreateMeeting(input);
           }}
@@ -346,4 +373,208 @@ function ChipToggle<T extends string>({
       })}
     </div>
   );
+}
+
+function MobileMeetingList({
+  meetings,
+  contactById,
+  onSelect
+}: {
+  meetings: Meeting[];
+  contactById: Map<string, Contact>;
+  onSelect: (m: Meeting) => void;
+}) {
+  const groups = useMemo(() => {
+    const byDay = new Map<string, Meeting[]>();
+    for (const m of meetings) {
+      if (!m.startTime) continue;
+      const key = m.startTime.slice(0, 10);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key)!.push(m);
+    }
+    const sorted = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b));
+    for (const [, list] of sorted) {
+      list.sort((a, b) => Date.parse(a.startTime!) - Date.parse(b.startTime!));
+    }
+    return sorted;
+  }, [meetings]);
+
+  if (groups.length === 0) {
+    return (
+      <div className="bg-white rounded-xl ring-1 ring-slate-200 py-12 text-center">
+        <p className="text-slate-500 text-sm">Keine Meetings</p>
+      </div>
+    );
+  }
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayIdx = groups.findIndex(([k]) => k >= todayKey);
+
+  return (
+    <div className="space-y-5">
+      {groups.map(([dayKey, dayMeetings], gi) => {
+        const isFirstFuture = gi === todayIdx;
+        return (
+          <section key={dayKey}>
+            <h3
+              className={
+                'text-xs font-semibold uppercase tracking-wider mb-2 px-1 ' +
+                (dayKey === todayKey
+                  ? 'text-indigo-700'
+                  : dayKey < todayKey
+                  ? 'text-slate-400'
+                  : 'text-slate-600')
+              }
+            >
+              {formatDayHeader(dayKey)}
+              {isFirstFuture && dayKey !== todayKey && (
+                <span className="ml-2 text-[10px] text-slate-400 font-normal normal-case">
+                  — ab hier kommt's
+                </span>
+              )}
+            </h3>
+            <ul className="space-y-2">
+              {dayMeetings.map((m) => (
+                <MobileMeetingCard
+                  key={m.id}
+                  meeting={m}
+                  contact={m.contactId ? contactById.get(m.contactId) || null : null}
+                  onClick={() => onSelect(m)}
+                />
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function MobileMeetingCard({
+  meeting,
+  contact,
+  onClick
+}: {
+  meeting: Meeting;
+  contact: Contact | null;
+  onClick: () => void;
+}) {
+  const state = meetingState(meeting.startTime, meeting.duration);
+  const vh = vorschauHighlight(contact);
+
+  const start = meeting.startTime ? new Date(meeting.startTime) : null;
+  const end = start
+    ? new Date(start.getTime() + (meeting.duration || 30) * 60000)
+    : null;
+  const timeStr =
+    start && end
+      ? `${start.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}–${end.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`
+      : '';
+
+  let borderCls = 'border-slate-200';
+  let ringCls = 'ring-slate-200';
+  if (state === 'running') {
+    borderCls = 'border-emerald-500';
+    ringCls = 'ring-emerald-300';
+  } else if (vh === 'needs-files') {
+    borderCls = 'border-rose-500';
+    ringCls = 'ring-rose-300';
+  } else if (vh === 'has-files') {
+    borderCls = 'border-emerald-500';
+    ringCls = 'ring-emerald-300';
+  } else if (contact) {
+    borderCls = 'border-indigo-500';
+    ringCls = 'ring-indigo-200';
+  }
+
+  const faded = state === 'past';
+
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={onClick}
+        className={
+          'w-full text-left bg-white rounded-xl ring-1 border-l-4 px-3 py-3 active:bg-slate-50 transition-colors ' +
+          `${borderCls} ${ringCls} ` +
+          (faded ? 'opacity-70' : '')
+        }
+      >
+        <div className="flex items-center gap-2 text-xs mb-1 flex-wrap">
+          <span className="font-semibold tabular-nums text-slate-900">{timeStr}</span>
+          <span className="text-slate-400">· {meeting.duration} Min</span>
+          {state === 'running' && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-800 bg-emerald-50 ring-1 ring-emerald-300 rounded-full px-1.5 py-0.5">
+              <PulseDot className="w-1.5 h-1.5" />
+              Live
+            </span>
+          )}
+          {state === 'past' && (
+            <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              Vorbei
+            </span>
+          )}
+          {meeting.matchMode === 'auto' && (
+            <span className="text-[10px] text-amber-700 bg-amber-50 ring-1 ring-amber-200 rounded px-1.5 py-0.5">
+              auto
+            </span>
+          )}
+        </div>
+        {contact ? (
+          <>
+            <div className="font-medium text-slate-900 text-sm truncate">
+              {contact.name || contact.unternehmen || '—'}
+            </div>
+            <div className="text-xs text-slate-500 mt-0.5 truncate">{meeting.topic}</div>
+          </>
+        ) : (
+          <>
+            <div className="font-medium text-slate-900 text-sm break-words">
+              {meeting.topic || 'Ohne Titel'}
+            </div>
+            <div className="text-xs text-slate-400 mt-0.5">Kein Kontakt zugeordnet</div>
+          </>
+        )}
+        {(state === 'running' || state === 'upcoming') && meeting.joinUrl && (
+          <a
+            href={meeting.joinUrl}
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={
+              'mt-2 inline-block text-xs font-medium px-3 py-1.5 rounded-md ' +
+              (state === 'running'
+                ? 'bg-emerald-600 text-white'
+                : 'text-indigo-700 bg-indigo-50 ring-1 ring-indigo-200')
+            }
+          >
+            {state === 'running' ? 'Jetzt beitreten' : 'Join-Link'}
+          </a>
+        )}
+      </button>
+    </li>
+  );
+}
+
+function formatDayHeader(dayKey: string): string {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayKey = today.toISOString().slice(0, 10);
+  const tomorrow = new Date(today.getTime() + 86400000);
+  const tomorrowKey = tomorrow.toISOString().slice(0, 10);
+  const yesterday = new Date(today.getTime() - 86400000);
+  const yesterdayKey = yesterday.toISOString().slice(0, 10);
+
+  if (dayKey === todayKey) return 'Heute';
+  if (dayKey === tomorrowKey) return 'Morgen';
+  if (dayKey === yesterdayKey) return 'Gestern';
+
+  const d = new Date(dayKey + 'T00:00:00');
+  const sameYear = d.getFullYear() === today.getFullYear();
+  return d.toLocaleDateString('de-DE', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    year: sameYear ? undefined : '2-digit'
+  });
 }
