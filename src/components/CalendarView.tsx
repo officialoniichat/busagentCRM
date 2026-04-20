@@ -262,6 +262,7 @@ export default function CalendarView({
           onCreate={async (input) => {
             await onCreateMeeting(input);
           }}
+          onCreateContact={onCreateContact}
         />
       )}
     </main>

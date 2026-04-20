@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Contact, Meeting, NewMeeting, Origin } from '../types';
+import type { Contact, Meeting, NewContact, NewMeeting, Origin } from '../types';
 import { ORIGIN_META } from '../types';
-import { CheckIcon, XIcon } from './Icons';
+import { CheckIcon, PlusIcon, XIcon } from './Icons';
+import ContactDrawer from './ContactDrawer';
 
 interface Props {
   contacts: Contact[];
@@ -12,6 +13,7 @@ interface Props {
   initialContactId?: string | null;
   onClose: () => void;
   onCreate: (input: NewMeeting) => Promise<void>;
+  onCreateContact: (input: NewContact) => Promise<Contact>;
 }
 
 function toLocalInputValue(d: Date): string {
@@ -36,8 +38,10 @@ export default function MeetingCreateDrawer({
   initialEnd,
   initialContactId,
   onClose,
-  onCreate
+  onCreate,
+  onCreateContact
 }: Props) {
+  const [creatingContact, setCreatingContact] = useState(false);
   const initialDate = initialStart || defaultStart();
   const initialDuration = initialEnd && initialStart
     ? Math.max(
@@ -287,13 +291,23 @@ export default function MeetingCreateDrawer({
               </div>
             ) : (
               <>
-                <input
-                  type="search"
-                  placeholder="Kontakt suchen…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className={inputCls + ' mb-2'}
-                />
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="search"
+                    placeholder="Kontakt suchen…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className={inputCls + ' flex-1'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setCreatingContact(true)}
+                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium text-indigo-700 bg-indigo-50 ring-1 ring-indigo-200 hover:bg-indigo-100 whitespace-nowrap"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5" />
+                    Neu anlegen
+                  </button>
+                </div>
                 <ul className="divide-y divide-slate-100 ring-1 ring-slate-200 rounded-lg max-h-52 overflow-y-auto">
                   {matches.length === 0 ? (
                     <li className="px-3 py-4 text-sm text-slate-500 text-center">
@@ -395,9 +409,41 @@ export default function MeetingCreateDrawer({
           </button>
         </div>
       </form>
+
+      {creatingContact && (
+        <ContactDrawer
+          initial={null}
+          initialDraft={extractDraftFromTopic(topic)}
+          titleOverride="Neuer Kontakt"
+          onClose={() => setCreatingContact(false)}
+          onSave={async (input) => {
+            const created = await onCreateContact(input);
+            pickContact(created);
+            setCreatingContact(false);
+          }}
+          onDelete={async () => {}}
+        />
+      )}
     </div>,
     document.body
   );
+}
+
+function extractDraftFromTopic(topic: string): Partial<NewContact> {
+  const parts = topic.split('|').map((s) => s.trim()).filter(Boolean);
+  const hint: Partial<NewContact> = {};
+  if (parts.length >= 3) {
+    hint.name = parts[1];
+    const last = parts[parts.length - 1];
+    const dashIdx = last.indexOf(' - ');
+    if (dashIdx !== -1) hint.unternehmen = last.slice(dashIdx + 3).trim();
+  } else if (parts.length === 2) {
+    hint.name = parts[1];
+  }
+  if (topic.trim()) {
+    hint.notizen = `Angelegt aus neuem Zoom-Meeting „${topic.trim()}"`;
+  }
+  return hint;
 }
 
 const inputCls =
