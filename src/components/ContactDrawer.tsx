@@ -162,11 +162,37 @@ export default function ContactDrawer({
           </div>
 
           <Field label="Website">
-            <input
-              value={form.web}
-              onChange={(e) => update('web', e.target.value)}
-              className={inputCls}
-            />
+            <div className="relative">
+              <input
+                value={form.web}
+                onChange={(e) => update('web', e.target.value)}
+                className={inputCls + (form.web.trim() ? ' pr-10' : '')}
+                placeholder="z.B. example.de"
+              />
+              {form.web.trim() && (
+                <a
+                  href={normalizeUrl(form.web)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Website öffnen"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 grid place-items-center rounded-md text-indigo-600 hover:bg-indigo-50"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <path d="M15 3h6v6" />
+                    <path d="M10 14 21 3" />
+                  </svg>
+                </a>
+              )}
+            </div>
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
@@ -465,5 +491,12 @@ function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function normalizeUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (/^[a-z][\w+.-]*:\/\//i.test(trimmed)) return trimmed;
+  return 'https://' + trimmed;
 }
 
