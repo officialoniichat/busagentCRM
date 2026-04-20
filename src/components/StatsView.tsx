@@ -54,6 +54,20 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
         />
       </section>
 
+      {/* Kunden-Pool Kurve */}
+      <Card title="Kunden-Pool pro Vertriebler — monatlich, kumulativ">
+        <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+          Durchgezogene Linie: <strong>gesamter Kundenpool</strong> (Kontakte mit
+          dieser Origin, bis Monatsende angelegt). Gestrichelt:{' '}
+          <strong>davon mit mindestens einem Zoom-Meeting</strong>. Abstand zwischen
+          beiden Linien = Pool-Kunden ohne bisherigen Meeting-Kontakt.
+        </p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <PoolChart data={stats.monthlyPool} origin="F" />
+          <PoolChart data={stats.monthlyPool} origin="T" />
+        </div>
+      </Card>
+
       {/* Stufen-Breakdown Gesamt */}
       <Card title="Stufen-Verteilung aller Zoom-Kontakte">
         <StufenBar stats={stats} />
@@ -197,6 +211,61 @@ export default function StatsView({ contacts, meetings, tasks }: Props) {
         </div>
       </Card>
     </main>
+  );
+}
+
+function PoolChart({
+  data,
+  origin
+}: {
+  data: Array<{
+    month: string;
+    FabianPool: number;
+    FabianMeeting: number;
+    TheoPool: number;
+    TheoMeeting: number;
+  }>;
+  origin: 'F' | 'T';
+}) {
+  const color = SELLER_COLORS[origin];
+  const meta = ORIGIN_META[origin];
+  const poolKey = origin === 'F' ? 'FabianPool' : 'TheoPool';
+  const mtgKey = origin === 'F' ? 'FabianMeeting' : 'TheoMeeting';
+  return (
+    <div>
+      <div className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-2">
+        <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+        {meta.label}
+      </div>
+      <div className="h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+            <Tooltip contentStyle={{ fontSize: 12 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Line
+              type="monotone"
+              dataKey={poolKey}
+              name="Pool gesamt"
+              stroke={color}
+              strokeWidth={2.5}
+              dot={false}
+            />
+            <Line
+              type="monotone"
+              dataKey={mtgKey}
+              name="mit Meeting"
+              stroke={color}
+              strokeWidth={2}
+              strokeDasharray="5 5"
+              dot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
   );
 }
 
@@ -516,6 +585,48 @@ function computeStats(contacts: Contact[], meetings: Meeting[], tasks: Task[]) {
     (m) => m.startTime && meetingState(m.startTime, m.duration) !== 'past'
   ).length;
 
+  // Monthly contact-pool curve (cumulative) — per origin, and "mit Meeting"
+  const contactMeetingFirst = new Map();
+  for (const m of meetings) {
+    if (!m.contactId || !m.startTime) continue;
+    const t = Date.parse(m.startTime);
+    if (!Number.isFinite(t)) continue;
+    const prev = contactMeetingFirst.get(m.contactId);
+    if (prev === undefined || t < prev) contactMeetingFirst.set(m.contactId, t);
+  }
+  const today = new Date();
+  const monthsBack = 12;
+  const firstMonth = new Date(today.getFullYear(), today.getMonth() - (monthsBack - 1), 1);
+  const monthlyPool: {
+    month: string;
+    FabianPool: number;
+    FabianMeeting: number;
+    TheoPool: number;
+    TheoMeeting: number;
+  }[] = [];
+  for (let i = 0; i < monthsBack; i++) {
+    const m = new Date(firstMonth.getFullYear(), firstMonth.getMonth() + i, 1);
+    const eom = new Date(m.getFullYear(), m.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    const label = m.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
+    let FabianPool = 0,
+      FabianMeeting = 0,
+      TheoPool = 0,
+      TheoMeeting = 0;
+    for (const c of contacts) {
+      if ((c.createdAt || 0) > eom) continue;
+      const firstMtg = contactMeetingFirst.get(c.id);
+      const hasMtgByNow = firstMtg !== undefined && firstMtg <= eom;
+      if (c.origin === 'F') {
+        FabianPool += 1;
+        if (hasMtgByNow) FabianMeeting += 1;
+      } else if (c.origin === 'T') {
+        TheoPool += 1;
+        if (hasMtgByNow) TheoMeeting += 1;
+      }
+    }
+    monthlyPool.push({ month: label, FabianPool, FabianMeeting, TheoPool, TheoMeeting });
+  }
+
   return {
     meetingsTotal: meetings.length,
     meetingsWithOrigin,
@@ -528,6 +639,7 @@ function computeStats(contacts: Contact[], meetings: Meeting[], tasks: Task[]) {
     noshowTotal,
     perSeller,
     weeklyMeetings,
+    monthlyPool,
     reliabilityBars,
     tasksBars
   };
