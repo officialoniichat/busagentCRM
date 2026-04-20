@@ -6,12 +6,37 @@ import ContactsView from './components/ContactsView';
 import CalendarView from './components/CalendarView';
 import TasksView from './components/TasksView';
 import OpenView from './components/OpenView';
+import StatsView from './components/StatsView';
 import { meetingState } from './types';
 import { useRoute } from './routing';
+import { useAuth } from './auth';
+import LoginScreen from './components/LoginScreen';
 
 export default function App() {
+  const { user, login, logout } = useAuth();
   const [route, setRoute] = useRoute();
   const tab = route.tab;
+
+  if (!user) {
+    return <LoginScreen onLogin={login} />;
+  }
+
+  return <AuthedApp user={user} onLogout={logout} route={route} setRoute={setRoute} tab={tab} />;
+}
+
+function AuthedApp({
+  user,
+  onLogout,
+  route,
+  setRoute,
+  tab
+}: {
+  user: import('./auth').SessionUser;
+  onLogout: () => void;
+  route: import('./routing').Route;
+  setRoute: (next: import('./routing').Route | ((prev: import('./routing').Route) => import('./routing').Route)) => void;
+  tab: import('./components/Header').TabName;
+}) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -166,7 +191,7 @@ export default function App() {
   const handleRescheduleMeeting = useCallback(
     async (
       meetingId: string,
-      input: { startTime: string; duration: number; timezone?: string }
+      input: { startTime: string; duration: number; timezone?: string; by: import('./types').Origin }
     ) => {
       const updated = await api.rescheduleMeeting(meetingId, input);
       setMeetings((prev) => prev.map((m) => (m.id === meetingId ? updated : m)));
@@ -181,6 +206,7 @@ export default function App() {
         outcome: 'happened' | 'noshow';
         newStufe?: 'K' | 'V' | 'T';
         note?: string;
+        by?: import('./types').Origin;
       }
     ) => {
       const updated = await api.reviewMeeting(meetingId, input);
@@ -242,6 +268,8 @@ export default function App() {
         syncing={syncing}
         status={status}
         openCount={openCount}
+        user={user}
+        onLogout={onLogout}
       />
 
       {loading ? (
@@ -272,6 +300,7 @@ export default function App() {
         <CalendarView
           route={route}
           setRoute={setRoute}
+          user={user}
           meetings={meetings}
           contacts={contacts}
           onLinkMeeting={handleLinkMeeting}
@@ -283,16 +312,26 @@ export default function App() {
         />
       ) : tab === 'open' ? (
         <OpenView
+          user={user}
           meetings={meetings}
           contacts={contacts}
           onReview={handleReviewMeeting}
           onReschedule={handleRescheduleMeeting}
           onCreateTask={handleCreateTask}
         />
+      ) : tab === 'stats' ? (
+        user.role === 'admin' ? (
+          <StatsView contacts={contacts} meetings={meetings} tasks={tasks} />
+        ) : (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 text-center text-slate-500">
+            Stats sind nur für Admins sichtbar.
+          </div>
+        )
       ) : (
         <TasksView
           route={route}
           setRoute={setRoute}
+          user={user}
           meetings={meetings}
           contacts={contacts}
           tasks={tasks}
@@ -308,3 +347,4 @@ export default function App() {
     </div>
   );
 }
+

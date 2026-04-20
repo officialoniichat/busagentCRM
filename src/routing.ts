@@ -11,7 +11,7 @@ export interface Route {
   taskId?: string;
 }
 
-const VALID_TABS = new Set(['contacts', 'calendar', 'tasks', 'open']);
+const VALID_TABS = new Set(['contacts', 'calendar', 'tasks', 'open', 'stats']);
 
 function parseHash(): Route {
   if (typeof window === 'undefined') return { tab: 'contacts' };

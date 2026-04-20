@@ -10,26 +10,29 @@ import {
 import { ActivityIcon, CheckIcon, XIcon } from './Icons';
 
 interface Props {
+  user: import('../auth').SessionUser;
   meetings: Meeting[];
   contacts: Contact[];
   onReview: (
     meetingId: string,
-    input: { outcome: 'happened' | 'noshow'; newStufe?: Stufe; note?: string }
+    input: { outcome: 'happened' | 'noshow'; newStufe?: Stufe; note?: string; by?: Origin }
   ) => Promise<void>;
   onReschedule: (
     meetingId: string,
-    input: { startTime: string; duration: number; timezone?: string }
+    input: { startTime: string; duration: number; timezone?: string; by: Origin }
   ) => Promise<void>;
   onCreateTask: (input: NewTask) => Promise<Task>;
 }
 
 export default function OpenView({
+  user,
   meetings,
   contacts,
   onReview,
   onReschedule,
   onCreateTask
 }: Props) {
+  const [filter, setFilter] = useState<'all' | 'mine'>(user.origin ? 'mine' : 'all');
   const contactById = useMemo(() => {
     const m = new Map<string, Contact>();
     for (const c of contacts) m.set(c.id, c);
@@ -52,18 +55,59 @@ export default function OpenView({
       });
   }, [meetings]);
 
+  const mine = useMemo(() => {
+    if (!user.origin) return pending;
+    return pending.filter((m) => {
+      const contact = m.contactId ? contactById.get(m.contactId) : null;
+      if (contact && contact.origin === user.origin) return true;
+      if ((m.assignedSellers || []).includes(user.origin!)) return true;
+      return false;
+    });
+  }, [pending, contactById, user.origin]);
+
+  const visible = filter === 'mine' ? mine : pending;
+
   return (
     <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
       <header>
         <h2 className="text-xl font-semibold text-slate-900">Offene Nachbereitung</h2>
         <p className="text-sm text-slate-500 mt-1">
-          {pending.length === 0
+          {visible.length === 0
             ? 'Alles sauber. Keine vergangenen Meetings warten auf Review.'
-            : `${pending.length} vergangene Meetings warten auf Nachbereitung.`}
+            : `${visible.length} von ${pending.length} vergangene Meetings warten auf Nachbereitung.`}
         </p>
       </header>
 
-      {pending.length === 0 && (
+      {user.origin && (
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+          <button
+            type="button"
+            onClick={() => setFilter('mine')}
+            className={
+              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors ' +
+              (filter === 'mine'
+                ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                : 'text-slate-600 hover:text-slate-900')
+            }
+          >
+            Für dich ({mine.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={
+              'px-3 py-1.5 rounded-md text-xs font-medium transition-colors ' +
+              (filter === 'all'
+                ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                : 'text-slate-600 hover:text-slate-900')
+            }
+          >
+            Alle ({pending.length})
+          </button>
+        </div>
+      )}
+
+      {visible.length === 0 && (
         <div className="bg-white rounded-xl ring-1 ring-slate-200 py-16 text-center">
           <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-emerald-50 ring-1 ring-emerald-200 grid place-items-center">
             <CheckIcon className="w-6 h-6 text-emerald-600" />
@@ -72,12 +116,13 @@ export default function OpenView({
         </div>
       )}
 
-      {pending.map((m) => {
+      {visible.map((m) => {
         const contact = m.contactId ? contactById.get(m.contactId) : null;
         if (!contact) return null;
         return (
           <ReviewCard
             key={m.id}
+            defaultBy={user.origin}
             meeting={m}
             contact={contact}
             otherMeetings={meetings.filter((x) => x.id !== m.id)}
@@ -94,6 +139,7 @@ export default function OpenView({
 type NoshowMode = 'none' | 'reschedule' | 'task' | 'dismiss';
 
 function ReviewCard({
+  defaultBy,
   meeting,
   contact,
   otherMeetings,
@@ -101,6 +147,7 @@ function ReviewCard({
   onReschedule,
   onCreateTask
 }: {
+  defaultBy: Origin | null;
   meeting: Meeting;
   contact: Contact;
   otherMeetings: Meeting[];
@@ -108,8 +155,9 @@ function ReviewCard({
     outcome: 'happened' | 'noshow';
     newStufe?: Stufe;
     note?: string;
+    by?: Origin;
   }) => Promise<void>;
-  onReschedule: (input: { startTime: string; duration: number; timezone?: string }) => Promise<void>;
+  onReschedule: (input: { startTime: string; duration: number; timezone?: string; by: Origin }) => Promise<void>;
   onCreateTask: (input: NewTask) => Promise<Task>;
 }) {
   const [outcome, setOutcome] = useState<'happened' | 'noshow' | null>(null);
@@ -118,6 +166,7 @@ function ReviewCard({
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [by, setBy] = useState<Origin | null>(defaultBy);
 
   // Reschedule state
   const [rescheduleWhen, setRescheduleWhen] = useState(() => defaultReschedule());
@@ -125,7 +174,7 @@ function ReviewCard({
   const [conflictAcked, setConflictAcked] = useState(false);
 
   // Task state
-  const [taskOwner, setTaskOwner] = useState<Origin>('F');
+  const [taskOwner, setTaskOwner] = useState<Origin>(defaultBy ?? 'F');
   const [taskTitle, setTaskTitle] = useState(
     `Follow-up: ${contact.name || contact.unternehmen || 'Kunde'}`
   );
@@ -174,7 +223,8 @@ function ReviewCard({
       await onReview({
         outcome: 'happened',
         newStufe: newStufe !== contact.stufe ? newStufe : undefined,
-        note: note.trim() || undefined
+        note: note.trim() || undefined,
+        by: by || undefined
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -186,7 +236,7 @@ function ReviewCard({
     setSaving(true);
     setErr(null);
     try {
-      await onReview({ outcome: 'noshow', note: note.trim() || undefined });
+      await onReview({ outcome: 'noshow', note: note.trim() || undefined, by: by || undefined });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       setSaving(false);
@@ -195,6 +245,10 @@ function ReviewCard({
 
   async function submitReschedule() {
     if (!rescheduleWhen || !Number.isFinite(rescheduleDur) || rescheduleDur < 1) return;
+    if (!by) {
+      setErr('Bitte auswählen, wer verschiebt');
+      return;
+    }
     if (rescheduleConflicts.length > 0 && !conflictAcked) {
       setConflictAcked(true);
       return;
@@ -203,7 +257,7 @@ function ReviewCard({
     setErr(null);
     try {
       const startTime = rescheduleWhen.length === 16 ? `${rescheduleWhen}:00` : rescheduleWhen;
-      await onReschedule({ startTime, duration: Math.round(rescheduleDur) });
+      await onReschedule({ startTime, duration: Math.round(rescheduleDur), by });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       setSaving(false);
@@ -228,7 +282,8 @@ function ReviewCard({
       });
       await onReview({
         outcome: 'noshow',
-        note: note.trim() || `Task für ${ORIGIN_META[taskOwner].label} angelegt`
+        note: note.trim() || `Task für ${ORIGIN_META[taskOwner].label} angelegt`,
+        by: by || undefined
       });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -393,6 +448,31 @@ function ReviewCard({
         <div className="bg-slate-50 rounded-lg p-3 space-y-3">
           <div className="text-xs font-medium text-slate-700 uppercase tracking-wider">
             Meeting verschieben
+          </div>
+          <div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+              Wer hat verschoben? <span className="text-rose-500">*</span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {MEETING_ORIGINS.map((o) => {
+                const active = by === o;
+                const meta = ORIGIN_META[o];
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    onClick={() => setBy(o)}
+                    className={
+                      'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ring-1 ' +
+                      (active ? meta.chip : 'bg-white text-slate-600 ring-slate-200 hover:ring-slate-300')
+                    }
+                  >
+                    <span className="text-[10px] opacity-70">{meta.role}</span>
+                    <span>{meta.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px] gap-2">
             <label className="block">

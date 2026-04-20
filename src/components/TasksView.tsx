@@ -26,8 +26,9 @@ interface Props {
   onDeleteMeeting: (meetingId: string) => Promise<void>;
   onRescheduleMeeting: (
     meetingId: string,
-    input: { startTime: string; duration: number; timezone?: string }
+    input: { startTime: string; duration: number; timezone?: string; by: Origin }
   ) => Promise<void>;
+  user: import('../auth').SessionUser;
   onCreateTask: (input: NewTask) => Promise<Task>;
   onUpdateTask: (id: string, patch: Partial<NewTask>) => Promise<Task>;
   onDeleteTask: (id: string) => Promise<void>;
@@ -43,13 +44,15 @@ export default function TasksView({
   onSetSellers,
   onDeleteMeeting,
   onRescheduleMeeting,
+  user,
   onCreateTask,
   onUpdateTask,
   onDeleteTask
 }: Props) {
   const [whoAmI, setWhoAmI] = useState<Origin | null>(() => {
+    if (user.origin) return user.origin;
     const saved = typeof window !== 'undefined' ? window.localStorage.getItem(WHO_KEY) : null;
-    return saved === 'F' || saved === 'T' ? saved : null;
+    return saved === 'F' || saved === 'T' || saved === 'D' ? saved : null;
   });
   const [taskDraftDate, setTaskDraftDate] = useState<string | undefined>();
   const [isMobile] = useState(
@@ -321,6 +324,7 @@ export default function TasksView({
           meeting={selectedMeeting}
           contacts={contacts}
           allMeetings={meetings}
+          defaultBy={user.origin}
           onClose={() => openMeeting(null)}
           onLink={async (cid) => {
             await onLinkMeeting(selectedMeeting.id, cid);
@@ -344,6 +348,7 @@ export default function TasksView({
           owner={whoAmI}
           initial={editTask}
           defaultDate={editTask ? undefined : taskDraftDate}
+          currentUserOrigin={user.origin}
           onClose={closeTaskDrawer}
           onSave={async (input, id) => {
             if (id) await onUpdateTask(id, input);
@@ -358,6 +363,12 @@ export default function TasksView({
                 }
               : undefined
           }
+          onToggleDone={async (id, done, by) => {
+            await onUpdateTask(id, {
+              done,
+              ...(done ? { doneAt: Date.now(), doneBy: by } : {})
+            });
+          }}
         />
       )}
     </main>

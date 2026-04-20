@@ -1,6 +1,7 @@
 import type { SyncStatus } from '../types';
+import type { SessionUser } from '../auth';
 
-export type TabName = 'contacts' | 'calendar' | 'tasks' | 'open';
+export type TabName = 'contacts' | 'calendar' | 'tasks' | 'open' | 'stats';
 
 interface Props {
   tab: TabName;
@@ -10,6 +11,8 @@ interface Props {
   syncing: boolean;
   status: SyncStatus | null;
   openCount: number;
+  user: SessionUser;
+  onLogout: () => void;
 }
 
 export default function Header({
@@ -19,8 +22,11 @@ export default function Header({
   onSync,
   syncing,
   status,
-  openCount
+  openCount,
+  user,
+  onLogout
 }: Props) {
+  const isAdmin = user.role === 'admin';
   const lastSync = status?.lastSyncAt
     ? new Date(status.lastSyncAt).toLocaleTimeString('de-DE', {
         hour: '2-digit',
@@ -70,6 +76,11 @@ export default function Header({
               )}
             </span>
           </TabButton>
+          {isAdmin && (
+            <TabButton active={tab === 'stats'} onClick={() => onTabChange('stats')}>
+              Stats
+            </TabButton>
+          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-3 flex-none">
@@ -126,6 +137,30 @@ export default function Header({
               <span className="hidden sm:inline">Kontakt</span>
             </button>
           )}
+
+          <div className="flex items-center gap-1.5 pl-1.5 sm:pl-3 border-l border-slate-200">
+            <span
+              className="text-xs font-semibold px-2 py-1 rounded-md bg-slate-100 text-slate-700 hidden sm:inline-flex"
+              title={`Eingeloggt als ${user.label}`}
+            >
+              {user.label}
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Abmelden?')) onLogout();
+              }}
+              className="w-8 h-8 grid place-items-center rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50"
+              title="Abmelden"
+              aria-label="Abmelden"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" x2="9" y1="12" y2="12" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </header>

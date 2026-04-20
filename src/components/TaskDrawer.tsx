@@ -7,9 +7,11 @@ interface Props {
   owner: Origin;
   initial: Task | null;
   defaultDate?: string;
+  currentUserOrigin: Origin | null;
   onClose: () => void;
   onSave: (input: NewTask, id?: string) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
+  onToggleDone?: (id: string, done: boolean, by: Origin) => Promise<void>;
 }
 
 function toLocalDateTime(iso: string): string {
@@ -42,9 +44,11 @@ export default function TaskDrawer({
   owner,
   initial,
   defaultDate,
+  currentUserOrigin,
   onClose,
   onSave,
-  onDelete
+  onDelete,
+  onToggleDone
 }: Props) {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [body, setBody] = useState(initial?.body ?? '');
@@ -127,6 +131,20 @@ export default function TaskDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {initial?.done && (
+            <div className="bg-emerald-50 ring-1 ring-emerald-200 rounded-lg px-3 py-2 text-sm text-emerald-800 flex items-center gap-2">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              <span>
+                Erledigt
+                {initial.doneBy ? ` von ${initial.doneBy}` : ''}
+                {initial.doneAt
+                  ? ` · ${new Date(initial.doneAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}`
+                  : ''}
+              </span>
+            </div>
+          )}
           <label className="block">
             <span className="text-xs font-medium text-slate-700 uppercase tracking-wider">
               Titel
@@ -192,17 +210,38 @@ export default function TaskDrawer({
         </div>
 
         <div className="px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50">
-          {initial && onDelete ? (
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="px-4 py-2 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
-            >
-              Löschen
-            </button>
-          ) : (
-            <span />
-          )}
+          <div className="flex items-center gap-2 flex-wrap">
+            {initial && onToggleDone && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const by = currentUserOrigin || initial.owner;
+                  await onToggleDone(initial.id, !initial.done, by);
+                  onClose();
+                }}
+                className={
+                  'inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg font-medium transition-colors ' +
+                  (initial.done
+                    ? 'text-slate-700 bg-slate-100 hover:bg-slate-200'
+                    : 'text-emerald-700 bg-emerald-50 ring-1 ring-emerald-200 hover:bg-emerald-100')
+                }
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                {initial.done ? 'Wieder offen' : 'Als erledigt markieren'}
+              </button>
+            )}
+            {initial && onDelete && (
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors"
+              >
+                Löschen
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <button
               type="button"

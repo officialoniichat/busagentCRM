@@ -99,7 +99,7 @@ export function deleteMeeting(id: string): Promise<void> {
 
 export function rescheduleMeeting(
   id: string,
-  input: { startTime: string; duration: number; timezone?: string }
+  input: { startTime: string; duration: number; timezone?: string; by: Origin }
 ): Promise<Meeting> {
   return fetch(`${base}/meetings/${id}/reschedule`, {
     method: 'POST',
@@ -114,6 +114,7 @@ export function reviewMeeting(
     outcome: 'happened' | 'noshow';
     newStufe?: 'K' | 'V' | 'T';
     note?: string;
+    by?: Origin;
   }
 ): Promise<Meeting> {
   return fetch(`${base}/meetings/${id}/review`, {

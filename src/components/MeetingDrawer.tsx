@@ -13,7 +13,8 @@ interface Props {
   onCreateContact: () => void;
   onSetSellers: (sellers: Origin[]) => Promise<void>;
   onDelete?: () => Promise<void>;
-  onReschedule?: (input: { startTime: string; duration: number; timezone?: string }) => Promise<void>;
+  onReschedule?: (input: { startTime: string; duration: number; timezone?: string; by: Origin }) => Promise<void>;
+  defaultBy?: Origin | null;
 }
 
 export default function MeetingDrawer({
@@ -25,7 +26,8 @@ export default function MeetingDrawer({
   onCreateContact,
   onSetSellers,
   onDelete,
-  onReschedule
+  onReschedule,
+  defaultBy
 }: Props) {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -287,6 +289,7 @@ export default function MeetingDrawer({
                 currentStart={meeting.startTime}
                 currentDuration={meeting.duration}
                 currentTimezone={meeting.timezone}
+                defaultBy={defaultBy ?? null}
                 otherMeetings={allMeetings.filter((m) => m.id !== meeting.id)}
                 onSubmit={async (input) => {
                   setSaving(true);
@@ -333,6 +336,7 @@ function RescheduleSection({
   currentStart,
   currentDuration,
   currentTimezone,
+  defaultBy,
   otherMeetings,
   onSubmit,
   disabled
@@ -340,13 +344,15 @@ function RescheduleSection({
   currentStart: string | null;
   currentDuration: number;
   currentTimezone?: string;
+  defaultBy: Origin | null;
   otherMeetings: Meeting[];
-  onSubmit: (input: { startTime: string; duration: number; timezone?: string }) => Promise<void>;
+  onSubmit: (input: { startTime: string; duration: number; timezone?: string; by: Origin }) => Promise<void>;
   disabled: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [when, setWhen] = useState(() => toLocalInput(currentStart));
   const [duration, setDuration] = useState(currentDuration || 60);
+  const [by, setBy] = useState<Origin | null>(defaultBy);
   const [conflictAcked, setConflictAcked] = useState(false);
 
   function toLocalInput(iso: string | null): string {
@@ -397,6 +403,31 @@ function RescheduleSection({
     <div className="bg-slate-50 ring-1 ring-slate-200 rounded-lg p-3 space-y-3">
       <div className="text-xs font-medium text-slate-700 uppercase tracking-wider">
         Meeting verschieben
+      </div>
+      <div>
+        <div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
+          Wer hat verschoben? <span className="text-rose-500">*</span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {MEETING_ORIGINS.map((o) => {
+            const active = by === o;
+            const meta = ORIGIN_META[o];
+            return (
+              <button
+                key={o}
+                type="button"
+                onClick={() => setBy(o)}
+                className={
+                  'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ring-1 ' +
+                  (active ? meta.chip : 'bg-white text-slate-600 ring-slate-200 hover:ring-slate-300')
+                }
+              >
+                <span className="text-[10px] opacity-70">{meta.role}</span>
+                <span>{meta.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_110px] gap-2">
         <label className="block">
@@ -472,15 +503,16 @@ function RescheduleSection({
           type="button"
           onClick={async () => {
             if (!when || !Number.isFinite(duration) || duration < 1) return;
+            if (!by) return;
             if (conflicts.length > 0 && !conflictAcked) {
               setConflictAcked(true);
               return;
             }
             const startTime = when.length === 16 ? `${when}:00` : when;
-            await onSubmit({ startTime, duration: Math.round(duration), timezone: currentTimezone });
+            await onSubmit({ startTime, duration: Math.round(duration), timezone: currentTimezone, by });
             setOpen(false);
           }}
-          disabled={disabled || !when}
+          disabled={disabled || !when || !by}
           className={
             'px-3 py-1.5 text-xs rounded-lg disabled:opacity-50 font-medium ' +
             (conflicts.length > 0

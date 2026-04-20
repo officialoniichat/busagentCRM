@@ -65,6 +65,9 @@ function sanitizeTask(body) {
   if (typeof body.body === 'string') out.body = body.body.trim();
   if (typeof body.startAt === 'string') out.startAt = body.startAt;
   if (typeof body.endAt === 'string') out.endAt = body.endAt;
+  if (typeof body.done === 'boolean') out.done = body.done;
+  if (body.doneBy === 'F' || body.doneBy === 'T' || body.doneBy === 'D') out.doneBy = body.doneBy;
+  if (typeof body.doneAt === 'number') out.doneAt = body.doneAt;
   return out;
 }
 
@@ -428,6 +431,10 @@ app.post('/api/meetings/:id/reschedule', async (req, res) => {
     const timezone = typeof req.body?.timezone === 'string' && req.body.timezone
       ? req.body.timezone
       : snap.data().timezone || 'Europe/Berlin';
+    const by = req.body?.by;
+    if (by !== 'F' && by !== 'T' && by !== 'D') {
+      return res.status(400).json({ error: 'by required (F|T|D)' });
+    }
 
     try {
       await zoom.updateMeeting(req.params.id, {
@@ -439,11 +446,21 @@ app.post('/api/meetings/:id/reschedule', async (req, res) => {
       return res.status(502).json({ error: err.message || String(err) });
     }
 
+    const prev = snap.data();
+    const event = {
+      at: Date.now(),
+      by,
+      oldStart: prev.startTime || null,
+      newStart: startTime,
+      oldDuration: prev.duration || 0,
+      newDuration: Math.round(duration)
+    };
     await ref.update({
       startTime,
       duration: Math.round(duration),
       timezone,
-      syncedAt: Date.now()
+      syncedAt: Date.now(),
+      rescheduleHistory: FieldValue.arrayUnion(event)
     });
 
     const next = (await ref.get()).data();
@@ -469,13 +486,17 @@ app.post('/api/meetings/:id/review', async (req, res) => {
       return res.status(400).json({ error: 'newStufe must be K|V|T' });
     }
     const note = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+    const by = req.body?.by;
+    const byValid = by === 'F' || by === 'T' || by === 'D';
 
     const now = Date.now();
-    await ref.update({
+    const reviewUpdates = {
       reviewed: true,
       reviewedAt: now,
       reviewOutcome: outcome
-    });
+    };
+    if (byValid) reviewUpdates.reviewedBy = by;
+    await ref.update(reviewUpdates);
 
     if (meeting.contactId) {
       const cRef = cContacts.doc(meeting.contactId);

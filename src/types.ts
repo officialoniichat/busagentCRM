@@ -159,7 +159,18 @@ export interface Meeting {
   assignedSellers?: Origin[];
   reviewed?: boolean;
   reviewedAt?: number;
+  reviewedBy?: Origin;
   reviewOutcome?: 'happened' | 'noshow';
+  rescheduleHistory?: RescheduleEvent[];
+}
+
+export interface RescheduleEvent {
+  at: number;
+  by: Origin;
+  oldStart: string | null;
+  newStart: string;
+  oldDuration?: number;
+  newDuration?: number;
 }
 
 export interface ContactFile {
@@ -190,6 +201,9 @@ export interface Task {
   endAt: string;
   createdAt: number;
   updatedAt: number;
+  done?: boolean;
+  doneAt?: number;
+  doneBy?: Origin;
 }
 
 export type NewTask = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
