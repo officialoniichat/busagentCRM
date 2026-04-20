@@ -35,7 +35,7 @@ export default function Header({
           </div>
           <div>
             <h1 className="text-base font-semibold leading-tight text-slate-900">
-              CRM · Busunternehmen
+              CRM · BusAgent
             </h1>
             <p className="text-xs text-slate-500">Lokales Kontaktmanagement</p>
           </div>
