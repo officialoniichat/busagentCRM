@@ -1,5 +1,6 @@
 import type { SyncStatus } from '../types';
 import type { SessionUser } from '../auth';
+import logoUrl from '../assets/logo.webp';
 
 export type TabName = 'contacts' | 'calendar' | 'tasks' | 'open' | 'stats';
 
@@ -38,12 +39,14 @@ export default function Header({
     <header className="sticky top-0 z-10 bg-white/80 backdrop-blur ring-1 ring-slate-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-2 sm:gap-6">
         <div className="flex items-center gap-2 sm:gap-3 flex-none">
-          <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white grid place-items-center font-semibold shadow-sm">
-            C
-          </div>
+          <img
+            src={logoUrl}
+            alt="BusAgent Logo"
+            className="w-9 h-9 object-contain"
+          />
           <div className="hidden md:block">
             <h1 className="text-base font-semibold leading-tight text-slate-900">
-              CRM · BusAgent
+              BusAgent · CRM
             </h1>
             <p className="text-xs text-slate-500">Lokales Kontaktmanagement</p>
           </div>
