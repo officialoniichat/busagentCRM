@@ -118,11 +118,11 @@
   background-image: linear-gradient(
     100deg,
     transparent 0%,
-    transparent 30%,
-    rgba(255, 255, 255, 0.55) 48%,
-    rgba(255, 255, 255, 0.7) 50%,
-    rgba(255, 255, 255, 0.55) 52%,
-    transparent 70%,
+    transparent 35%,
+    rgba(168, 85, 247, 0.3) 48%,
+    rgba(168, 85, 247, 0.42) 50%,
+    rgba(168, 85, 247, 0.3) 52%,
+    transparent 65%,
     transparent 100%
   );
   background-size: 220% 100%;
@@ -130,7 +130,7 @@
   background-repeat: no-repeat;
   color: white;
   outline: 2px solid rgb(52 211 153);
-  animation: crm-ev-sirene 1.6s linear infinite;
+  animation: crm-ev-sirene 2.4s linear infinite;
   overflow: hidden;
   position: relative;
 }
