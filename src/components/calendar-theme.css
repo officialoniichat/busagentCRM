@@ -110,22 +110,37 @@
   outline: 2px solid rgb(16 185 129);
 }
 
-/* LIVE — currently running (beats linked/unlinked colors) */
+/* LIVE — currently running (Sirene-Sweep, überschreibt linked/unlinked) */
 .fc .fc-event.crm-ev-live,
 .fc .fc-event.crm-ev-live.crm-ev-linked,
 .fc .fc-event.crm-ev-live.crm-ev-unlinked {
-  background: rgb(16 185 129);
+  background-color: rgb(5 150 105);
+  background-image: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 30%,
+    rgba(255, 255, 255, 0.55) 48%,
+    rgba(255, 255, 255, 0.7) 50%,
+    rgba(255, 255, 255, 0.55) 52%,
+    transparent 70%,
+    transparent 100%
+  );
+  background-size: 220% 100%;
+  background-position: 100% 0;
+  background-repeat: no-repeat;
   color: white;
   outline: 2px solid rgb(52 211 153);
-  animation: crm-ev-pulse 2.2s ease-in-out infinite;
+  animation: crm-ev-sirene 1.6s linear infinite;
+  overflow: hidden;
+  position: relative;
 }
 
-@keyframes crm-ev-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+@keyframes crm-ev-sirene {
+  0% {
+    background-position: 150% 0;
   }
-  50% {
-    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+  100% {
+    background-position: -150% 0;
   }
 }
 
