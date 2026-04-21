@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Contact, Meeting, Origin } from '../types';
+import type { Contact, Meeting, NewContact, Origin } from '../types';
 import { MEETING_ORIGINS, ORIGIN_META, meetingState } from '../types';
 import { PulseDot, XIcon } from './Icons';
+import ContactDrawer from './ContactDrawer';
 
 interface Props {
   meeting: Meeting;
@@ -11,6 +12,7 @@ interface Props {
   onClose: () => void;
   onLink: (contactId: string | null) => Promise<void>;
   onCreateContact: () => void;
+  onSaveContact?: (input: NewContact, id?: string) => Promise<Contact>;
   onSetSellers: (sellers: Origin[]) => Promise<void>;
   onDelete?: () => Promise<void>;
   onReschedule?: (input: { startTime: string; duration: number; timezone?: string; by: Origin }) => Promise<void>;
@@ -24,6 +26,7 @@ export default function MeetingDrawer({
   onClose,
   onLink,
   onCreateContact,
+  onSaveContact,
   onSetSellers,
   onDelete,
   onReschedule,
@@ -32,6 +35,7 @@ export default function MeetingDrawer({
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [viewingContact, setViewingContact] = useState(false);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -181,25 +185,41 @@ export default function MeetingDrawer({
             </div>
 
             {linkedContact ? (
-              <div className="flex items-center gap-3 bg-indigo-50 ring-1 ring-indigo-200 rounded-lg p-3">
-                <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white grid place-items-center font-semibold text-sm">
-                  {(linkedContact.name || linkedContact.unternehmen || '?').slice(0, 1).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-slate-900 truncate">
-                    {linkedContact.name || linkedContact.unternehmen}
+              <div className="flex items-center gap-3 bg-indigo-50 ring-1 ring-indigo-200 rounded-lg p-3 hover:ring-indigo-400 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => onSaveContact && setViewingContact(true)}
+                  disabled={!onSaveContact}
+                  className="flex items-center gap-3 flex-1 min-w-0 text-left group disabled:cursor-default"
+                  title={onSaveContact ? 'Kontaktdetails anzeigen' : undefined}
+                >
+                  <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white grid place-items-center font-semibold text-sm flex-none">
+                    {(linkedContact.name || linkedContact.unternehmen || '?').slice(0, 1).toUpperCase()}
                   </div>
-                  {linkedContact.unternehmen && linkedContact.name && (
-                    <div className="text-xs text-slate-500 truncate">
-                      {linkedContact.unternehmen}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-slate-900 truncate group-hover:text-indigo-800">
+                      {linkedContact.name || linkedContact.unternehmen}
                     </div>
-                  )}
-                </div>
+                    {linkedContact.unternehmen && linkedContact.name && (
+                      <div className="text-xs text-slate-500 truncate">
+                        {linkedContact.unternehmen}
+                      </div>
+                    )}
+                    {onSaveContact && (
+                      <div className="text-[10px] text-indigo-600 group-hover:text-indigo-800 mt-0.5 inline-flex items-center gap-0.5">
+                        Details anzeigen
+                        <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                </button>
                 <button
                   type="button"
                   onClick={() => link(null)}
                   disabled={saving}
-                  className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded disabled:opacity-50"
+                  className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded disabled:opacity-50 flex-none"
                 >
                   Lösen
                 </button>
@@ -327,6 +347,19 @@ export default function MeetingDrawer({
           )}
         </div>
       </div>
+
+      {viewingContact && linkedContact && onSaveContact && (
+        <ContactDrawer
+          initial={linkedContact}
+          titleOverride="Kontakt-Details"
+          onClose={() => setViewingContact(false)}
+          onSave={async (input, id) => {
+            await onSaveContact(input, id);
+            setViewingContact(false);
+          }}
+          onDelete={async () => {}}
+        />
+      )}
     </div>,
     document.body
   );

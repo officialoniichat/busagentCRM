@@ -22,7 +22,7 @@ interface Props {
   meetings: Meeting[];
   contacts: Contact[];
   onLinkMeeting: (meetingId: string, contactId: string | null) => Promise<void>;
-  onCreateContact: (input: NewContact) => Promise<Contact>;
+  onCreateContact: (input: NewContact, id?: string) => Promise<Contact>;
   onSetSellers: (meetingId: string, sellers: import('../types').Origin[]) => Promise<void>;
   onCreateMeeting: (input: NewMeeting) => Promise<Meeting>;
   onDeleteMeeting: (meetingId: string) => Promise<void>;
@@ -286,6 +286,7 @@ export default function CalendarView({
             await onLinkMeeting(selected.id, cid);
           }}
           onCreateContact={() => setCreatingForMeeting(selected)}
+          onSaveContact={onCreateContact}
           onDelete={async () => {
             await onDeleteMeeting(selected.id);
             openMeeting(null);
@@ -324,7 +325,7 @@ export default function CalendarView({
           onCreate={async (input) => {
             await onCreateMeeting(input);
           }}
-          onCreateContact={onCreateContact}
+          onSaveContact={onCreateContact}
         />
       )}
 

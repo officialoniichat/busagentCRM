@@ -13,7 +13,7 @@ interface Props {
   initialContactId?: string | null;
   onClose: () => void;
   onCreate: (input: NewMeeting) => Promise<void>;
-  onCreateContact: (input: NewContact) => Promise<Contact>;
+  onSaveContact: (input: NewContact, id?: string) => Promise<Contact>;
 }
 
 function toLocalInputValue(d: Date): string {
@@ -39,9 +39,10 @@ export default function MeetingCreateDrawer({
   initialContactId,
   onClose,
   onCreate,
-  onCreateContact
+  onSaveContact
 }: Props) {
   const [creatingContact, setCreatingContact] = useState(false);
+  const [viewingContact, setViewingContact] = useState(false);
   const initialDate = initialStart || defaultStart();
   const initialDuration = initialEnd && initialStart
     ? Math.max(
@@ -274,9 +275,14 @@ export default function MeetingCreateDrawer({
 
           <Field label="Kontakt zuordnen" hint="optional">
             {linkedContact ? (
-              <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg ring-1 ring-slate-200 bg-slate-50">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-900 truncate">
+              <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg ring-1 ring-slate-200 bg-slate-50 hover:ring-indigo-300 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setViewingContact(true)}
+                  className="min-w-0 flex-1 text-left group"
+                  title="Kontaktdetails anzeigen"
+                >
+                  <div className="text-sm font-medium text-slate-900 truncate group-hover:text-indigo-700">
                     {linkedContact.name || linkedContact.unternehmen || '—'}
                   </div>
                   {linkedContact.unternehmen && linkedContact.name && (
@@ -284,11 +290,17 @@ export default function MeetingCreateDrawer({
                       {linkedContact.unternehmen}
                     </div>
                   )}
-                </div>
+                  <div className="text-[10px] text-indigo-600 group-hover:text-indigo-800 mt-0.5 inline-flex items-center gap-0.5">
+                    Details anzeigen
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </div>
+                </button>
                 <button
                   type="button"
                   onClick={() => pickContact(null)}
-                  className="text-xs text-slate-500 hover:text-rose-600 px-2 py-1 rounded hover:bg-rose-50"
+                  className="text-xs text-slate-500 hover:text-rose-600 px-2 py-1 rounded hover:bg-rose-50 flex-none"
                 >
                   Entfernen
                 </button>
@@ -421,9 +433,22 @@ export default function MeetingCreateDrawer({
           titleOverride="Neuer Kontakt"
           onClose={() => setCreatingContact(false)}
           onSave={async (input) => {
-            const created = await onCreateContact(input);
+            const created = await onSaveContact(input);
             pickContact(created);
             setCreatingContact(false);
+          }}
+          onDelete={async () => {}}
+        />
+      )}
+
+      {viewingContact && linkedContact && (
+        <ContactDrawer
+          initial={linkedContact}
+          titleOverride="Kontakt-Details"
+          onClose={() => setViewingContact(false)}
+          onSave={async (input, id) => {
+            await onSaveContact(input, id);
+            setViewingContact(false);
           }}
           onDelete={async () => {}}
         />

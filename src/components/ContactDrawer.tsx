@@ -102,6 +102,14 @@ export default function ContactDrawer({
     if (!initial) return;
     const label = initial.name || initial.unternehmen || 'dieser Kontakt';
     if (!confirm(`„${label}" wirklich löschen?`)) return;
+    const pw = window.prompt(
+      'Das Löschen eines Kontakts kann nur mit Admin-Passwort bestätigt werden.'
+    );
+    if (pw === null) return;
+    if (pw !== ADMIN_PASSWORD) {
+      window.alert('Falsches Passwort.');
+      return;
+    }
     try {
       await onDelete(initial.id);
     } catch (e2) {
