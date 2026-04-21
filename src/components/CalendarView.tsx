@@ -12,6 +12,7 @@ import type { Route } from '../routing';
 import MeetingDrawer from './MeetingDrawer';
 import ContactDrawer from './ContactDrawer';
 import MeetingCreateDrawer from './MeetingCreateDrawer';
+import FreeSlotsDrawer from './FreeSlotsDrawer';
 import { PlusIcon, PulseDot } from './Icons';
 import './calendar-theme.css';
 
@@ -66,6 +67,7 @@ export default function CalendarView({
     start: Date | null;
     end: Date | null;
   } | null>(null);
+  const [showFreeSlots, setShowFreeSlots] = useState(false);
   const [isMobile] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
   );
@@ -210,6 +212,17 @@ export default function CalendarView({
 
         <button
           type="button"
+          onClick={() => setShowFreeSlots(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 active:bg-emerald-800 transition-colors shadow-sm"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          Freie Zeiten
+        </button>
+        <button
+          type="button"
           onClick={() => openCreate(null, null)}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm"
         >
@@ -312,6 +325,17 @@ export default function CalendarView({
             await onCreateMeeting(input);
           }}
           onCreateContact={onCreateContact}
+        />
+      )}
+
+      {showFreeSlots && (
+        <FreeSlotsDrawer
+          meetings={meetings}
+          onClose={() => setShowFreeSlots(false)}
+          onPickSlot={(start, end) => {
+            setShowFreeSlots(false);
+            openCreate(start, end);
+          }}
         />
       )}
     </main>
