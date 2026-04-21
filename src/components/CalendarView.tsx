@@ -331,6 +331,7 @@ export default function CalendarView({
       {showFreeSlots && (
         <FreeSlotsDrawer
           meetings={meetings}
+          contacts={contacts}
           onClose={() => setShowFreeSlots(false)}
           onPickSlot={(start, end) => {
             setShowFreeSlots(false);

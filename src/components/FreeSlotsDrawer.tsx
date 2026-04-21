@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Meeting, Origin } from '../types';
+import type { Contact, Meeting, Origin } from '../types';
 import { MEETING_ORIGINS, ORIGIN_META } from '../types';
 import { CheckIcon, XIcon } from './Icons';
 
 interface Props {
   meetings: Meeting[];
+  contacts: Contact[];
   onClose: () => void;
   onPickSlot: (start: Date, end: Date) => void;
 }
@@ -15,12 +16,16 @@ interface FreeSlot {
   end: Date;
   durationMin: number;
   dayKey: string;
+  beforeMeeting: Meeting | null;
+  afterMeeting: Meeting | null;
+  beforeContact: Contact | null;
+  beforeIsFirstVorschauFuture: boolean;
 }
 
 const DEFAULT_BIZ_START = 9;
 const DEFAULT_BIZ_END = 18;
 
-export default function FreeSlotsDrawer({ meetings, onClose, onPickSlot }: Props) {
+export default function FreeSlotsDrawer({ meetings, contacts, onClose, onPickSlot }: Props) {
   const [daysAhead, setDaysAhead] = useState(14);
   const [minMinutes, setMinMinutes] = useState(30);
   const [maxMinutes, setMaxMinutes] = useState<number | ''>('');
@@ -28,6 +33,7 @@ export default function FreeSlotsDrawer({ meetings, onClose, onPickSlot }: Props
   const [bizEnd, setBizEnd] = useState(DEFAULT_BIZ_END);
   const [skipWeekends, setSkipWeekends] = useState(true);
   const [requiredSellers, setRequiredSellers] = useState<Origin[]>([]);
+  const [onlyBetween, setOnlyBetween] = useState(true);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -43,6 +49,7 @@ export default function FreeSlotsDrawer({ meetings, onClose, onPickSlot }: Props
     const endDay = new Date(startDay.getTime() + daysAhead * 86_400_000);
     return computeFreeSlots({
       meetings,
+      contacts,
       from: startDay,
       to: endDay,
       bizStart,
@@ -50,16 +57,19 @@ export default function FreeSlotsDrawer({ meetings, onClose, onPickSlot }: Props
       minMinutes,
       maxMinutes: maxMinutes === '' ? null : Number(maxMinutes),
       skipWeekends,
+      onlyBetween,
       requiredSellers: requiredSellers.length > 0 ? requiredSellers : null
     });
   }, [
     meetings,
+    contacts,
     daysAhead,
     bizStart,
     bizEnd,
     minMinutes,
     maxMinutes,
     skipWeekends,
+    onlyBetween,
     requiredSellers
   ]);
 
@@ -211,15 +221,26 @@ export default function FreeSlotsDrawer({ meetings, onClose, onPickSlot }: Props
             </p>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={skipWeekends}
-              onChange={(e) => setSkipWeekends(e.target.checked)}
-              className="w-3.5 h-3.5"
-            />
-            Wochenenden überspringen
-          </label>
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={onlyBetween}
+                onChange={(e) => setOnlyBetween(e.target.checked)}
+                className="w-3.5 h-3.5"
+              />
+              Nur Lücken <strong>zwischen</strong> Meetings (keine Randzeit)
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={skipWeekends}
+                onChange={(e) => setSkipWeekends(e.target.checked)}
+                className="w-3.5 h-3.5"
+              />
+              Wochenenden überspringen
+            </label>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -236,10 +257,26 @@ export default function FreeSlotsDrawer({ meetings, onClose, onPickSlot }: Props
               <ul className="space-y-1.5">
                 {daySlots.map((s, i) => (
                   <li key={i}>
+                    {s.beforeIsFirstVorschauFuture && s.beforeContact && (
+                      <div className="bg-rose-50 ring-1 ring-rose-200 rounded-t-lg px-3 py-1.5 text-[11px] text-rose-800 flex items-center gap-1.5">
+                        <span className="font-semibold uppercase tracking-wider text-[9px] bg-rose-600 text-white rounded px-1 py-0.5">
+                          DAVOR
+                        </span>
+                        <span className="truncate">
+                          <strong>
+                            {s.beforeContact.name || s.beforeContact.unternehmen || '—'}
+                          </strong>{' '}
+                          · erster Termin · Vorschau
+                        </span>
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => onPickSlot(s.start, s.end)}
-                      className="w-full text-left bg-emerald-50 ring-1 ring-emerald-200 hover:ring-emerald-400 hover:bg-emerald-100 rounded-lg px-3 py-2 transition-colors flex items-center gap-3"
+                      className={
+                        'w-full text-left bg-emerald-50 ring-1 ring-emerald-200 hover:ring-emerald-400 hover:bg-emerald-100 rounded-lg px-3 py-2 transition-colors flex items-center gap-3 ' +
+                        (s.beforeIsFirstVorschauFuture ? 'rounded-t-none' : '')
+                      }
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-emerald-900 tabular-nums">
@@ -247,6 +284,13 @@ export default function FreeSlotsDrawer({ meetings, onClose, onPickSlot }: Props
                         </div>
                         <div className="text-[11px] text-emerald-700">
                           {formatDuration(s.durationMin)} frei
+                          {s.beforeMeeting && s.afterMeeting && (
+                            <span className="text-emerald-600/80">
+                              {' '}
+                              · zwischen {fmtTime(new Date(Date.parse(s.beforeMeeting.startTime!) + (s.beforeMeeting.duration || 0) * 60_000))} und{' '}
+                              {fmtTime(new Date(Date.parse(s.afterMeeting.startTime!)))}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <svg className="w-4 h-4 text-emerald-700 flex-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -304,6 +348,7 @@ function toKey(d: Date) {
 
 function computeFreeSlots(opts: {
   meetings: Meeting[];
+  contacts: Contact[];
   from: Date;
   to: Date;
   bizStart: number;
@@ -311,10 +356,12 @@ function computeFreeSlots(opts: {
   minMinutes: number;
   maxMinutes: number | null;
   skipWeekends: boolean;
+  onlyBetween: boolean;
   requiredSellers: Origin[] | null;
 }): FreeSlot[] {
   const {
     meetings,
+    contacts,
     from,
     to,
     bizStart,
@@ -322,11 +369,40 @@ function computeFreeSlots(opts: {
     minMinutes,
     maxMinutes,
     skipWeekends,
+    onlyBetween,
     requiredSellers
   } = opts;
   if (bizEnd <= bizStart) return [];
 
-  // Keep only meetings that "block" per required sellers filter
+  const contactById = new Map(contacts.map((c) => [c.id, c]));
+  const now = new Date();
+  const nowMs = now.getTime();
+
+  // Precompute per contactId: earliest future meeting with contact in Vorschau
+  const firstFutureVorschauByContact = new Map<string, number>();
+  for (const m of meetings) {
+    if (!m.startTime || !m.contactId) continue;
+    const c = contactById.get(m.contactId);
+    if (!c || c.stufe !== 'V') continue;
+    const s = Date.parse(m.startTime);
+    if (!Number.isFinite(s) || s < nowMs) continue;
+    const prev = firstFutureVorschauByContact.get(m.contactId);
+    if (prev === undefined || s < prev) {
+      firstFutureVorschauByContact.set(m.contactId, s);
+    }
+  }
+
+  function isFirstVorschauFuture(m: Meeting): boolean {
+    if (!m.contactId || !m.startTime) return false;
+    const c = contactById.get(m.contactId);
+    if (!c || c.stufe !== 'V') return false;
+    const s = Date.parse(m.startTime);
+    if (!Number.isFinite(s) || s < nowMs) return false;
+    const first = firstFutureVorschauByContact.get(m.contactId);
+    return first === s;
+  }
+
+  // Meetings that "block" per required-sellers filter
   const blocking = meetings.filter((m) => {
     if (!m.startTime || !m.duration) return false;
     if (!requiredSellers) return true;
@@ -346,13 +422,12 @@ function computeFreeSlots(opts: {
     dayOpen.setHours(bizStart, 0, 0, 0);
     const dayClose = new Date(day);
     dayClose.setHours(bizEnd, 0, 0, 0);
-    // For today: start from now if later than dayOpen
-    const now = new Date();
-    const cursor = now > dayOpen && now < dayClose ? now : dayOpen;
+    const cursor = nowMs > dayOpen.getTime() && nowMs < dayClose.getTime() ? new Date(nowMs) : dayOpen;
     const effectiveStart = cursor > dayOpen ? cursor : dayOpen;
 
-    // Meetings overlapping this day
-    const todays: { start: number; end: number }[] = [];
+    // Build list of {start, end, meeting?} for meetings overlapping this day, preserving
+    // original meeting refs so we can attach "before / after" to slots.
+    const todays: { start: number; end: number; meetings: Meeting[] }[] = [];
     for (const m of blocking) {
       const s = Date.parse(m.startTime!);
       if (!Number.isFinite(s)) continue;
@@ -360,31 +435,86 @@ function computeFreeSlots(opts: {
       if (e <= dayOpen.getTime() || s >= dayClose.getTime()) continue;
       todays.push({
         start: Math.max(s, dayOpen.getTime()),
-        end: Math.min(e, dayClose.getTime())
+        end: Math.min(e, dayClose.getTime()),
+        meetings: [m]
       });
     }
     todays.sort((a, b) => a.start - b.start);
 
-    // Merge overlaps
-    const merged: { start: number; end: number }[] = [];
+    // Merge overlapping/back-to-back blocks (but preserve meeting list)
+    const merged: { start: number; end: number; meetings: Meeting[] }[] = [];
     for (const t of todays) {
       const last = merged[merged.length - 1];
       if (last && t.start <= last.end) {
         last.end = Math.max(last.end, t.end);
+        last.meetings.push(...t.meetings);
       } else {
-        merged.push({ ...t });
+        merged.push({ start: t.start, end: t.end, meetings: [...t.meetings] });
       }
     }
 
-    let ptr = effectiveStart.getTime();
-    for (const m of merged) {
-      if (m.start > ptr) {
-        pushSlot(slots, ptr, m.start, minMinutes, maxMinutes);
-      }
-      ptr = Math.max(ptr, m.end);
+    function lastMeeting(block: { meetings: Meeting[] }): Meeting | null {
+      if (!block.meetings.length) return null;
+      return block.meetings.reduce((latest, m) => {
+        const lm = latest.startTime ? Date.parse(latest.startTime) : 0;
+        const mm = m.startTime ? Date.parse(m.startTime) : 0;
+        return mm > lm ? m : latest;
+      });
     }
-    if (ptr < dayClose.getTime()) {
-      pushSlot(slots, ptr, dayClose.getTime(), minMinutes, maxMinutes);
+    function firstMeeting(block: { meetings: Meeting[] }): Meeting | null {
+      if (!block.meetings.length) return null;
+      return block.meetings.reduce((earliest, m) => {
+        const em = earliest.startTime ? Date.parse(earliest.startTime) : 0;
+        const mm = m.startTime ? Date.parse(m.startTime) : 0;
+        return mm < em ? m : earliest;
+      });
+    }
+
+    // Edge slot: beginning of business hours to first block
+    if (!onlyBetween && merged.length > 0 && merged[0].start > effectiveStart.getTime()) {
+      pushSlot(slots, effectiveStart.getTime(), merged[0].start, minMinutes, maxMinutes, null, firstMeeting(merged[0]), null, isFirstVorschauFuture);
+    }
+    // Gaps between consecutive meeting-blocks
+    for (let k = 0; k < merged.length - 1; k++) {
+      const a = merged[k];
+      const b = merged[k + 1];
+      if (b.start > a.end) {
+        const beforeM = lastMeeting(a);
+        const afterM = firstMeeting(b);
+        pushSlot(
+          slots,
+          a.end,
+          b.start,
+          minMinutes,
+          maxMinutes,
+          beforeM,
+          afterM,
+          beforeM ? contactById.get(beforeM.contactId || '') ?? null : null,
+          isFirstVorschauFuture
+        );
+      }
+    }
+    // Edge slot: after last block to end of business hours
+    if (!onlyBetween && merged.length > 0) {
+      const last = merged[merged.length - 1];
+      if (last.end < dayClose.getTime()) {
+        const beforeM = lastMeeting(last);
+        pushSlot(
+          slots,
+          last.end,
+          dayClose.getTime(),
+          minMinutes,
+          maxMinutes,
+          beforeM,
+          null,
+          beforeM ? contactById.get(beforeM.contactId || '') ?? null : null,
+          isFirstVorschauFuture
+        );
+      }
+    }
+    // Completely empty day (only in "all gaps" mode)
+    if (!onlyBetween && merged.length === 0) {
+      pushSlot(slots, effectiveStart.getTime(), dayClose.getTime(), minMinutes, maxMinutes, null, null, null, isFirstVorschauFuture);
     }
   }
 
@@ -396,7 +526,11 @@ function pushSlot(
   startMs: number,
   endMs: number,
   minMinutes: number,
-  maxMinutes: number | null
+  maxMinutes: number | null,
+  beforeMeeting: Meeting | null,
+  afterMeeting: Meeting | null,
+  beforeContact: Contact | null,
+  isFirstVorschauFuture: (m: Meeting) => boolean
 ) {
   const dur = Math.floor((endMs - startMs) / 60_000);
   if (dur < minMinutes) return;
@@ -407,6 +541,10 @@ function pushSlot(
     start: s,
     end: e,
     durationMin: dur,
-    dayKey: toKey(s)
+    dayKey: toKey(s),
+    beforeMeeting,
+    afterMeeting,
+    beforeContact,
+    beforeIsFirstVorschauFuture: beforeMeeting ? isFirstVorschauFuture(beforeMeeting) : false
   });
 }
