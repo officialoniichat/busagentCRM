@@ -423,21 +423,30 @@ function FilesSection({
   downloadUrlFor: (fileId: string) => string;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    const picked = Array.from(e.target.files ?? []);
     e.target.value = '';
-    if (!file) return;
+    if (picked.length === 0) return;
     setUploading(true);
+    setProgress({ done: 0, total: picked.length });
     setErr(null);
-    try {
-      await onUpload(file);
-    } catch (e2) {
-      setErr(e2 instanceof Error ? e2.message : String(e2));
-    } finally {
-      setUploading(false);
+    const failures: string[] = [];
+    for (let i = 0; i < picked.length; i++) {
+      const file = picked[i];
+      try {
+        await onUpload(file);
+      } catch (e2) {
+        const msg = e2 instanceof Error ? e2.message : String(e2);
+        failures.push(`${file.name}: ${msg}`);
+      }
+      setProgress({ done: i + 1, total: picked.length });
     }
+    if (failures.length > 0) setErr(failures.join('\n'));
+    setUploading(false);
+    setProgress(null);
   }
 
   const sorted = [...files].sort((a, b) => b.uploadedAt - a.uploadedAt);
@@ -459,9 +468,14 @@ function FilesSection({
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 5v14M5 12h14" />
           </svg>
-          {uploading ? 'Lädt hoch…' : 'Datei hochladen'}
+          {uploading
+            ? progress && progress.total > 1
+              ? `Lädt ${progress.done}/${progress.total} hoch…`
+              : 'Lädt hoch…'
+            : 'Dateien hochladen'}
           <input
             type="file"
+            multiple
             onChange={handlePick}
             disabled={uploading}
             className="hidden"
@@ -523,7 +537,7 @@ function FilesSection({
       )}
 
       {err && (
-        <div className="mt-2 bg-rose-50 ring-1 ring-rose-200 rounded-lg p-2 text-xs text-rose-700">
+        <div className="mt-2 bg-rose-50 ring-1 ring-rose-200 rounded-lg p-2 text-xs text-rose-700 whitespace-pre-line">
           {err}
         </div>
       )}
