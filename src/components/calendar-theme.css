@@ -92,6 +92,12 @@
   border: none;
 }
 
+/* TASK — kategorisierte Tasks bekommen farbige Umrandung */
+.fc .fc-event.crm-ev-task.crm-ev-task-cat {
+  outline: 2px solid var(--crm-cat-color, transparent);
+  outline-offset: -2px;
+}
+
 /* VORSCHAU-Highlight — Kontakt in Stufe V ohne Dokumente → rot */
 .fc .fc-event.crm-ev-vorschau-needs-files,
 .fc .fc-event.crm-ev-vorschau-needs-files.crm-ev-linked,

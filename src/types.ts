@@ -204,9 +204,33 @@ export interface Task {
   done?: boolean;
   doneAt?: number;
   doneBy?: Origin;
+  contactId?: string | null;
+  categoryId?: string | null;
 }
 
 export type NewTask = Omit<Task, 'id' | 'createdAt' | 'updatedAt'>;
+
+export interface TaskCategory {
+  id: string;
+  label: string;
+  color: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type NewTaskCategory = Omit<TaskCategory, 'id' | 'createdAt' | 'updatedAt'>;
+
+export const TASK_CATEGORY_COLORS: string[] = [
+  '#0ea5e9',
+  '#6366f1',
+  '#8b5cf6',
+  '#ec4899',
+  '#ef4444',
+  '#f59e0b',
+  '#10b981',
+  '#14b8a6',
+  '#64748b'
+];
 
 export interface SyncStatus {
   configured: boolean;

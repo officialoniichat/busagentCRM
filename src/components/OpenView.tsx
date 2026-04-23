@@ -278,7 +278,8 @@ function ReviewCard({
         title: taskTitle.trim(),
         startAt: startIso,
         endAt: endIso,
-        body: `Follow-up aus ausgefallenem Zoom-Call „${meeting.topic}" mit ${contact.name || contact.unternehmen}`
+        body: `Follow-up aus ausgefallenem Zoom-Call „${meeting.topic}" mit ${contact.name || contact.unternehmen}`,
+        contactId: contact.id
       });
       await onReview({
         outcome: 'noshow',

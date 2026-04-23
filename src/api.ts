@@ -1,4 +1,4 @@
-import type { Activity, ActivityType, Contact, ContactFile, Meeting, NewContact, NewMeeting, NewTask, Origin, SyncStatus, Task } from './types';
+import type { Activity, ActivityType, Contact, ContactFile, Meeting, NewContact, NewMeeting, NewTask, NewTaskCategory, Origin, SyncStatus, Task, TaskCategory } from './types';
 
 const base = '/api';
 
@@ -154,6 +154,35 @@ export function updateTask(id: string, patch: Partial<NewTask>): Promise<Task> {
 
 export function deleteTask(id: string): Promise<void> {
   return fetch(`${base}/tasks/${id}`, { method: 'DELETE' }).then((r) => handle<void>(r));
+}
+
+export function listTaskCategories(): Promise<TaskCategory[]> {
+  return fetch(`${base}/task-categories`).then((r) => handle<TaskCategory[]>(r));
+}
+
+export function createTaskCategory(input: NewTaskCategory): Promise<TaskCategory> {
+  return fetch(`${base}/task-categories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  }).then((r) => handle<TaskCategory>(r));
+}
+
+export function updateTaskCategory(
+  id: string,
+  patch: Partial<NewTaskCategory>
+): Promise<TaskCategory> {
+  return fetch(`${base}/task-categories/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch)
+  }).then((r) => handle<TaskCategory>(r));
+}
+
+export function deleteTaskCategory(id: string): Promise<void> {
+  return fetch(`${base}/task-categories/${id}`, { method: 'DELETE' }).then((r) =>
+    handle<void>(r)
+  );
 }
 
 export function getZoomStatus(): Promise<SyncStatus> {

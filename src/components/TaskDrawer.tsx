@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { NewTask, Origin, Task } from '../types';
+import type { Contact, NewTask, Origin, Task, TaskCategory } from '../types';
 import { XIcon } from './Icons';
 
 interface Props {
   owner: Origin;
   initial: Task | null;
-  defaultDate?: string;
+  draftStartAt?: string;
+  draftEndAt?: string;
+  contacts: Contact[];
+  categories: TaskCategory[];
   currentUserOrigin: Origin | null;
   onClose: () => void;
   onSave: (input: NewTask, id?: string) => Promise<void>;
@@ -24,8 +27,8 @@ function fromLocalDateTime(s: string): string {
   return new Date(s).toISOString();
 }
 
-function defaultStart(dateKey?: string): string {
-  if (dateKey) return `${dateKey}T09:00`;
+function defaultStart(draftStartAt?: string): string {
+  if (draftStartAt) return toLocalDateTime(draftStartAt);
   const d = new Date();
   d.setMinutes(0, 0, 0);
   d.setHours(d.getHours() + 1);
@@ -33,7 +36,11 @@ function defaultStart(dateKey?: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function defaultEnd(start: string): string {
+function defaultEnd(start: string, draftEndAt?: string): string {
+  if (draftEndAt) {
+    const end = toLocalDateTime(draftEndAt);
+    if (new Date(end) > new Date(start)) return end;
+  }
   const d = new Date(start);
   d.setMinutes(d.getMinutes() + 60);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -43,7 +50,10 @@ function defaultEnd(start: string): string {
 export default function TaskDrawer({
   owner,
   initial,
-  defaultDate,
+  draftStartAt,
+  draftEndAt,
+  contacts,
+  categories,
   currentUserOrigin,
   onClose,
   onSave,
@@ -53,11 +63,16 @@ export default function TaskDrawer({
   const [title, setTitle] = useState(initial?.title ?? '');
   const [body, setBody] = useState(initial?.body ?? '');
   const [startAt, setStartAt] = useState(
-    initial ? toLocalDateTime(initial.startAt) : defaultStart(defaultDate)
+    initial ? toLocalDateTime(initial.startAt) : defaultStart(draftStartAt)
   );
-  const [endAt, setEndAt] = useState(
-    initial ? toLocalDateTime(initial.endAt) : defaultEnd(defaultStart(defaultDate))
-  );
+  const [endAt, setEndAt] = useState(() => {
+    if (initial) return toLocalDateTime(initial.endAt);
+    const start = defaultStart(draftStartAt);
+    return defaultEnd(start, draftEndAt);
+  });
+  const [contactId, setContactId] = useState<string | null>(initial?.contactId ?? null);
+  const [categoryId, setCategoryId] = useState<string | null>(initial?.categoryId ?? null);
+  const [contactSearch, setContactSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -68,6 +83,25 @@ export default function TaskDrawer({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  const linkedContact = useMemo(
+    () => (contactId ? contacts.find((c) => c.id === contactId) || null : null),
+    [contactId, contacts]
+  );
+
+  const matches = useMemo(() => {
+    const q = contactSearch.trim().toLowerCase();
+    const sorted = [...contacts].sort((a, b) =>
+      (a.name || a.unternehmen || '').localeCompare(b.name || b.unternehmen || '')
+    );
+    if (!q) return sorted.slice(0, 20);
+    return sorted
+      .filter((c) => {
+        const hay = [c.name, c.unternehmen, c.email].join(' ').toLowerCase();
+        return hay.includes(q);
+      })
+      .slice(0, 20);
+  }, [contacts, contactSearch]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,7 +122,9 @@ export default function TaskDrawer({
           title: title.trim(),
           body: body.trim() || undefined,
           startAt: fromLocalDateTime(startAt),
-          endAt: fromLocalDateTime(endAt)
+          endAt: fromLocalDateTime(endAt),
+          contactId: contactId || null,
+          categoryId: categoryId || null
         },
         initial?.id
       );
@@ -187,6 +223,121 @@ export default function TaskDrawer({
                 className="mt-1.5 w-full px-3 py-2 rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm bg-white"
               />
             </label>
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-slate-700 uppercase tracking-wider mb-2">
+              Kategorie
+            </div>
+            {categories.length === 0 ? (
+              <div className="text-xs text-slate-400 italic">
+                Noch keine Kategorien angelegt.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCategoryId(null)}
+                  className={
+                    'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ring-1 transition-colors ' +
+                    (categoryId === null
+                      ? 'bg-slate-100 text-slate-800 ring-slate-300'
+                      : 'bg-white text-slate-600 ring-slate-200 hover:ring-slate-300')
+                  }
+                >
+                  Keine
+                </button>
+                {categories.map((c) => {
+                  const active = categoryId === c.id;
+                  return (
+                    <button
+                      type="button"
+                      key={c.id}
+                      onClick={() => setCategoryId(c.id)}
+                      className={
+                        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium ring-1 transition-colors ' +
+                        (active
+                          ? 'bg-white text-slate-900'
+                          : 'bg-white text-slate-600 ring-slate-200 hover:ring-slate-300')
+                      }
+                      style={active ? { boxShadow: `inset 0 0 0 2px ${c.color}` } : undefined}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full flex-none"
+                        style={{ background: c.color }}
+                      />
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div className="text-xs font-medium text-slate-700 uppercase tracking-wider mb-2">
+              Kontakt
+            </div>
+            {linkedContact ? (
+              <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg ring-1 ring-slate-200 bg-slate-50">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-slate-900 truncate">
+                    {linkedContact.name || linkedContact.unternehmen || '—'}
+                  </div>
+                  {linkedContact.unternehmen && linkedContact.name && (
+                    <div className="text-xs text-slate-500 truncate">
+                      {linkedContact.unternehmen}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setContactId(null)}
+                  className="text-xs text-slate-500 hover:text-rose-600 px-2 py-1 rounded hover:bg-rose-50 flex-none"
+                >
+                  Entfernen
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="search"
+                  placeholder="Kontakt suchen…"
+                  value={contactSearch}
+                  onChange={(e) => setContactSearch(e.target.value)}
+                  className="mb-2 w-full px-3 py-2 rounded-lg ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm bg-white"
+                />
+                <ul className="divide-y divide-slate-100 ring-1 ring-slate-200 rounded-lg max-h-48 overflow-y-auto">
+                  {matches.length === 0 ? (
+                    <li className="px-3 py-4 text-sm text-slate-500 text-center">
+                      Keine Kontakte gefunden
+                    </li>
+                  ) : (
+                    matches.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContactId(c.id);
+                            setContactSearch('');
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-50"
+                        >
+                          <div className="text-sm font-medium text-slate-900 truncate">
+                            {c.name || c.unternehmen || '—'}
+                          </div>
+                          {c.unternehmen && c.name && (
+                            <div className="text-xs text-slate-500 truncate">
+                              {c.unternehmen}
+                            </div>
+                          )}
+                        </button>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </>
+            )}
           </div>
 
           <label className="block">

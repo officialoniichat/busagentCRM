@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Contact, Meeting, NewContact, NewMeeting, NewTask, SyncStatus, Task } from './types';
+import type { Contact, Meeting, NewContact, NewMeeting, NewTask, NewTaskCategory, SyncStatus, Task, TaskCategory } from './types';
 import * as api from './api';
 import Header from './components/Header';
 import ContactsView from './components/ContactsView';
@@ -40,6 +40,7 @@ function AuthedApp({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskCategories, setTaskCategories] = useState<TaskCategory[]>([]);
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -50,12 +51,14 @@ function AuthedApp({
       api.listContacts(),
       api.listMeetings(),
       api.listTasks(),
+      api.listTaskCategories(),
       api.getZoomStatus()
     ])
-      .then(([cs, ms, ts, st]) => {
+      .then(([cs, ms, ts, tcs, st]) => {
         setContacts(cs);
         setMeetings(ms);
         setTasks(ts);
+        setTaskCategories(tcs);
         setStatus(st);
       })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
@@ -258,6 +261,27 @@ function AuthedApp({
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const handleCreateTaskCategory = useCallback(async (input: NewTaskCategory) => {
+    const created = await api.createTaskCategory(input);
+    setTaskCategories((prev) => [...prev, created]);
+    return created;
+  }, []);
+
+  const handleUpdateTaskCategory = useCallback(
+    async (id: string, patch: Partial<NewTaskCategory>) => {
+      const updated = await api.updateTaskCategory(id, patch);
+      setTaskCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      return updated;
+    },
+    []
+  );
+
+  const handleDeleteTaskCategory = useCallback(async (id: string) => {
+    await api.deleteTaskCategory(id);
+    setTaskCategories((prev) => prev.filter((c) => c.id !== id));
+    setTasks((prev) => prev.map((t) => (t.categoryId === id ? { ...t, categoryId: null } : t)));
+  }, []);
+
   return (
     <div className="min-h-screen">
       <Header
@@ -335,6 +359,7 @@ function AuthedApp({
           meetings={meetings}
           contacts={contacts}
           tasks={tasks}
+          taskCategories={taskCategories}
           onLinkMeeting={handleLinkMeeting}
           onSetSellers={handleSetSellers}
           onDeleteMeeting={handleDeleteMeeting}
@@ -342,6 +367,9 @@ function AuthedApp({
           onCreateTask={handleCreateTask}
           onUpdateTask={handleUpdateTask}
           onDeleteTask={handleDeleteTask}
+          onCreateTaskCategory={handleCreateTaskCategory}
+          onUpdateTaskCategory={handleUpdateTaskCategory}
+          onDeleteTaskCategory={handleDeleteTaskCategory}
         />
       )}
     </div>

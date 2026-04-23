@@ -41,6 +41,7 @@ const db = getDb();
 const cContacts = db.collection('contacts');
 const cMeetings = db.collection('meetings');
 const cTasks = db.collection('tasks');
+const cTaskCategories = db.collection('taskCategories');
 
 const STUFE_LABEL = { K: 'Kalt', V: 'Vorschau', T: 'Testtermin' };
 
@@ -67,6 +68,21 @@ function sanitizeTask(body) {
   if (typeof body.done === 'boolean') out.done = body.done;
   if (body.doneBy === 'F' || body.doneBy === 'T' || body.doneBy === 'D') out.doneBy = body.doneBy;
   if (typeof body.doneAt === 'number') out.doneAt = body.doneAt;
+  if ('contactId' in body) {
+    out.contactId = typeof body.contactId === 'string' && body.contactId ? body.contactId : null;
+  }
+  if ('categoryId' in body) {
+    out.categoryId = typeof body.categoryId === 'string' && body.categoryId ? body.categoryId : null;
+  }
+  return out;
+}
+
+function sanitizeTaskCategory(body) {
+  const out = {};
+  if (typeof body.label === 'string') out.label = body.label.trim();
+  if (typeof body.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(body.color.trim())) {
+    out.color = body.color.trim().toLowerCase();
+  }
   return out;
 }
 
@@ -664,6 +680,60 @@ app.put('/api/tasks/:id', async (req, res) => {
 app.delete('/api/tasks/:id', async (req, res) => {
   try {
     await cTasks.doc(req.params.id).delete();
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+// ---------- Task categories ----------
+
+app.get('/api/task-categories', async (_req, res) => {
+  try {
+    const snap = await cTaskCategories.get();
+    res.json(snap.docs.map((d) => d.data()));
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+app.post('/api/task-categories', async (req, res) => {
+  try {
+    const input = sanitizeTaskCategory(req.body);
+    if (!input.label || !input.color) {
+      return res.status(400).json({ error: 'label and color required' });
+    }
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    const cat = { id, createdAt: now, updatedAt: now, ...input };
+    await cTaskCategories.doc(id).set(cat);
+    res.status(201).json(cat);
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+app.put('/api/task-categories/:id', async (req, res) => {
+  try {
+    const ref = cTaskCategories.doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) return res.status(404).json({ error: 'Not found' });
+    await ref.update({ ...sanitizeTaskCategory(req.body), updatedAt: Date.now() });
+    const next = (await ref.get()).data();
+    res.json(next);
+  } catch (err) {
+    res.status(500).json({ error: err.message || String(err) });
+  }
+});
+
+app.delete('/api/task-categories/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    await cTaskCategories.doc(id).delete();
+    const tsnap = await cTasks.where('categoryId', '==', id).get();
+    const batch = db.batch();
+    tsnap.docs.forEach((d) => batch.update(d.ref, { categoryId: null, updatedAt: Date.now() }));
+    if (!tsnap.empty) await batch.commit();
     res.status(204).end();
   } catch (err) {
     res.status(500).json({ error: err.message || String(err) });
